@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anime Generator</title>
+    <style>
+        body { font-family: sans-serif; background-color: #282c34; color: white; text-align: center; padding-top: 50px; }
+        h1 { color: #61dafb; }
+        form { margin-bottom: 30px; }
+        textarea { width: 80%; max-width: 500px; padding: 10px; border-radius: 5px; border: 1px solid #61dafb; }
+        input[type="submit"] { background-color: #61dafb; color: #282c34; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        /* Style for the file input */
+        input[type="file"] { margin-top: 15px; }
+        .image-container { margin-top: 20px; min-height: 512px; }
+        img { max-width: 90%; border-radius: 10px; border: 3px solid #61dafb; }
+        .error { color: #ff6b6b; }
+    </style>
+</head>
+<body>
+    <h1>Interactive Anime Generator 🎨</h1>
+
+    <form action="/generate" method="post" enctype="multipart/form-data">
+        <textarea name="prompt" rows="3" placeholder="e.g., a cute anime girl with blue hair and a cat">{{ prompt }}</textarea>
+        <br>
+
+        <label for="overlay_image">Upload an image to insert (optional):</label>
+        <br>
+        <input type="file" name="overlay_image" accept="image/*">
+
+        <br><br>
+        <input type="submit" value="Generate Image">
+    </form>
+
+    <div class="image-container">
+        {% if image_url %}
+            <p>Your final image:</p>
+            <img src="{{ image_url }}?t={{ range(1, 1000) | random }}" alt="Generated Anime Image">
+        {% endif %}
+
+        {% if error %}
+            <p class="error">{{ error }}</p>
+        {% endif %}
+    </div>
+</body>
+</html>
