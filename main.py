@@ -20,7 +20,7 @@ GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
 # Initialize Gemini
 if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+    genai.api_key = GEMINI_API_KEY
     print("Gemini API key loaded successfully.")
 else:
     print("CRITICAL: GEMINI_API_KEY environment variable not set. Core features will fail.")
