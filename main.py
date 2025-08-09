@@ -104,6 +104,7 @@ def generate_anime(current_user):
                 chat_ref = db.collection('users').document(current_user['uid']).collection('chats').document(chat_id)
                 chat_ref.update({
                     'messages': firestore.ArrayUnion([
+
                         {'sender': 'ai', 'content': image_data_url, 'type': 'image', 'timestamp': firestore.SERVER_TIMESTAMP}
                     ]),
                     'lastUpdated': firestore.SERVER_TIMESTAMP
