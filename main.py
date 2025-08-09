@@ -77,8 +77,15 @@ def generate_anime(current_user):
     try:
         # Initialize the Gemini model with error handling
         try:
+            # Try the standard import first
             model = genai.GenerativeModel('gemini-1.5-flash')
-
+        except AttributeError:
+            # Fallback for older versions
+            try:
+                model = genai.GenerativeModel(model_name='gemini-1.5-flash')
+            except Exception as e:
+                print(f"Error initializing GenerativeModel: {e}")
+                return jsonify({'error': 'AI model initialization failed.'}), 500
         except Exception as e:
             print(f"Error initializing GenerativeModel: {e}")
             return jsonify({'error': 'AI model initialization failed.'}), 500
@@ -120,7 +127,15 @@ def handle_chat(current_user):
     try:
         # Initialize the Gemini model with error handling
         try:
+            # Try the standard import first
             model = genai.GenerativeModel('gemini-1.5-flash')
+        except AttributeError:
+            # Fallback for older versions
+            try:
+                model = genai.GenerativeModel(model_name='gemini-1.5-flash')
+            except Exception as e:
+                print(f"Error initializing GenerativeModel: {e}")
+                return jsonify({'error': 'AI model initialization failed.'}), 500
         except Exception as e:
             print(f"Error initializing GenerativeModel: {e}")
             return jsonify({'error': 'AI model initialization failed.'}), 500
