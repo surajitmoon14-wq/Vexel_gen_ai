@@ -20,10 +20,17 @@ GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
 # Initialize Gemini
 if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-    print("Gemini API key loaded successfully.")
-    # FIX #2: Create a single, global model instance for reuse.
-    ai_model = genai.GenerativeModel('gemini-1.5-pro')
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        print("Gemini API key loaded successfully.")
+        # Create a single, global model instance for reuse
+        ai_model = genai.GenerativeModel('gemini-1.5-pro')
+    except AttributeError:
+        # Fallback for older API versions
+        print("Using fallback Gemini initialization.")
+        ai_model = genai.GenerativeModel('gemini-1.5-pro')
+        # Set API key as environment variable as fallback
+        os.environ['GOOGLE_API_KEY'] = GEMINI_API_KEY
 else:
     print("CRITICAL: GEMINI_API_KEY environment variable not set. Core features will fail.")
     ai_model = None # Ensure ai_model exists even if initialization fails
