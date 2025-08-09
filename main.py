@@ -43,14 +43,33 @@ try:
     if not service_account_json_str.startswith('{'):
         raise ValueError("JSON string does not start with '{'")
     
+    # Fix common JSON formatting issues
+    # Replace single quotes with double quotes
+    service_account_json_str = service_account_json_str.replace("'", '"')
+    
+    # Remove any trailing commas before closing braces/brackets
+    import re
+    service_account_json_str = re.sub(r',(\s*[}\]])', r'\1', service_account_json_str)
+    
     service_account_info = json.loads(service_account_json_str)
+    
+    # Validate required fields
+    required_fields = ['type', 'project_id', 'private_key_id', 'private_key', 'client_email']
+    missing_fields = [field for field in required_fields if field not in service_account_info]
+    if missing_fields:
+        raise ValueError(f"Missing required fields in Firebase config: {', '.join(missing_fields)}")
+    
     cred = credentials.Certificate(service_account_info)
     firebase_admin.initialize_app(cred)
     db = firestore.client()
     print("✅ Firebase Admin SDK initialized successfully.")
 except json.JSONDecodeError as e:
     print(f"⚠️ WARNING: Firebase JSON is malformed. Error at line {e.lineno}, column {e.colno}: {e.msg}")
-    print("Please check that your FIREBASE_SERVICE_ACCOUNT_JSON secret contains valid JSON with proper double quotes around property names.")
+    print("Common issues:")
+    print("- Property names must be in double quotes, not single quotes")
+    print("- No trailing commas before closing braces")
+    print("- Escape sequences in private_key must use double backslashes")
+    print("Please check your FIREBASE_SERVICE_ACCOUNT_JSON secret format.")
     db = None
 except Exception as e:
     print(f"⚠️ WARNING: Firebase Admin SDK failed to initialize. Chat history will not be saved. Error: {e}")
