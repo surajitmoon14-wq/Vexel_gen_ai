@@ -1,46 +1,665 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Anime Generator</title>
+    <title>AI Content Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: sans-serif; background-color: #282c34; color: white; text-align: center; padding-top: 50px; }
-        h1 { color: #61dafb; }
-        form { margin-bottom: 30px; }
-        textarea { width: 80%; max-width: 500px; padding: 10px; border-radius: 5px; border: 1px solid #61dafb; }
-        input[type="submit"] { background-color: #61dafb; color: #282c34; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; }
-        /* Style for the file input */
-        input[type="file"] { margin-top: 15px; }
-        .image-container { margin-top: 20px; min-height: 512px; }
-        img { max-width: 90%; border-radius: 10px; border: 3px solid #61dafb; }
-        .error { color: #ff6b6b; }
+        body {
+            font-family: 'Inter', sans-serif;
+            color: white;
+            background: linear-gradient(135deg, #4a0e69, #d946ef, #1a1a2e, #ec4899);
+            background-size: 400% 400%;
+            animation: gradientBG 18s ease infinite;
+        }
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .glassmorphism {
+            background: rgba(26, 26, 46, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .sidebar {
+            transition: transform 0.3s ease-in-out;
+            background-color: #1f2937;
+        }
+        .sidebar-link {
+            @apply flex items-center p-3 my-1 rounded-lg text-gray-300 hover:bg-gray-700 hover:text-white transition-colors;
+        }
+        .sidebar-link.active {
+            @apply bg-pink-600/30 text-white;
+        }
+        .modal-bg {
+            background-color: rgba(0,0,0,0.7);
+        }
+        .loader {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #fff;
+            border-radius: 50%;
+            width: 1.5rem;
+            height: 1.5rem;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Centered Chat Layout */
+        .chat-wrapper {
+            @apply max-w-4xl mx-auto w-full h-full flex flex-col;
+        }
+        .chat-bubble {
+            @apply p-4 rounded-xl max-w-2xl mb-4 flex items-start space-x-4;
+        }
+        .user-bubble {
+            @apply bg-purple-700 text-white ml-auto;
+        }
+        .ai-bubble {
+            @apply bg-gray-800 glassmorphism text-gray-200 mr-auto;
+        }
+        /* Code block styling */
+        .ai-bubble pre {
+            @apply bg-gray-900 text-white p-4 rounded-lg my-2 overflow-x-auto relative;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        .copy-btn {
+            @apply absolute top-2 right-2 p-1.5 rounded-md bg-gray-600 hover:bg-gray-500 text-gray-300 transition-colors;
+        }
+        #chat-container::-webkit-scrollbar { width: 8px; }
+        #chat-container::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+        #chat-container::-webkit-scrollbar-thumb { background-color: #ec4899; border-radius: 10px; }
+
+        #dropdown-arrow {
+            transition: transform 0.3s ease-in-out;
+        }
+        #dropdown-arrow.rotate-180 {
+            transform: rotate(180deg);
+        }
     </style>
 </head>
-<body>
-    <h1>Interactive Anime Generator 🎨</h1>
+<body class="bg-gray-900">
 
-    <form action="/generate" method="post" enctype="multipart/form-data">
-        <textarea name="prompt" rows="3" placeholder="e.g., a cute anime girl with blue hair and a cat">{{ prompt }}</textarea>
-        <br>
+    <!-- Notification Container -->
+    <div id="notification-container" class="fixed top-5 right-5 z-50 space-y-3 w-full max-w-xs"></div>
 
-        <label for="overlay_image">Upload an image to insert (optional):</label>
-        <br>
-        <input type="file" name="overlay_image" accept="image/*">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="sidebar fixed top-0 left-0 z-40 w-64 h-screen border-r border-gray-700 transform -translate-x-full lg:translate-x-0">
+        <div class="p-4">
+            <h1 class="text-2xl font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">AI Generator</h1>
+        </div>
+        <nav class="p-2 mt-4">
+            <a href="#" id="nav-new-chat-btn" class="sidebar-link">
+                <svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                New Chat
+            </a>
+            <a href="#" id="nav-generator-btn" class="sidebar-link active">
+                <svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                Generator
+            </a>
+            <a href="#" id="nav-recents-btn" class="sidebar-link">
+                <svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
+                Recents
+            </a>
+            <a href="#" id="nav-settings-btn" class="sidebar-link">
+                <svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                Settings
+            </a>
+        </nav>
+    </aside>
 
-        <br><br>
-        <input type="submit" value="Generate Image">
-    </form>
+    <!-- Main Content Wrapper -->
+    <div id="main-content" class="lg:ml-64 transition-all duration-300 ease-in-out h-screen flex flex-col">
+        <header class="sticky top-0 z-30 p-4 bg-gray-900/70 backdrop-blur-lg flex items-center flex-shrink-0 border-b border-gray-700">
+            <button id="sidebar-toggle" class="p-2 rounded-md text-gray-300 hover:bg-gray-700 mr-4">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+            </button>
 
-    <div class="image-container">
-        {% if image_url %}
-            <p>Your final image:</p>
-            <img src="{{ image_url }}?t={{ range(1, 1000) | random }}" alt="Generated Anime Image">
-        {% endif %}
+            <div id="model-switcher-container" class="relative">
+                <button id="model-selector-btn" class="flex items-center justify-between w-52 px-4 py-2 bg-gray-800 rounded-lg text-white font-semibold focus:outline-none focus:ring-2 focus:ring-pink-500">
+                    <span id="selected-model-name" class="truncate">Anime Generator</span>
+                    <svg class="w-5 h-5 ml-2 text-gray-400" id="dropdown-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <div id="model-dropdown" class="absolute top-full mt-1 w-52 bg-gray-800 rounded-lg shadow-lg z-10 hidden border border-gray-700">
+                    <a href="#" class="model-option block px-4 py-3 text-gray-300 hover:bg-pink-600/50 hover:text-white rounded-t-lg" data-model="anime">Anime Generator</a>
+                    <a href="#" class="model-option block px-4 py-3 text-gray-300 hover:bg-pink-600/50 hover:text-white rounded-b-lg" data-model="chat">Chat Assistant</a>
+                </div>
+            </div>
+        </header>
 
-        {% if error %}
-            <p class="error">{{ error }}</p>
-        {% endif %}
+        <main class="flex-grow p-4 md:p-6 overflow-y-hidden flex flex-col">
+            <div id="generator-page-content" class="page-content flex-grow overflow-y-hidden flex flex-col chat-wrapper">
+                <div id="chat-container" class="flex-grow overflow-y-auto pr-2">
+                    <!-- Chat bubbles will be injected here -->
+                </div>
+                <div id="input-bar" class="mt-4 flex-shrink-0">
+                    <form id="prompt-form" class="relative">
+                        <textarea id="prompt-input" class="w-full p-4 pr-28 bg-gray-800 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 resize-none" placeholder="Type your prompt here..." rows="1"></textarea>
+                        <div class="absolute bottom-3 right-3 flex items-center">
+                            <label for="file-input" id="file-input-label" class="p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white cursor-pointer transition-colors">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
+                            </label>
+                            <input type="file" id="file-input" class="hidden">
+                            <button type="submit" class="p-2 rounded-full bg-purple-600 text-white hover:bg-purple-700 transition-colors ml-2">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path></svg>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div id="recents-page-content" class="hidden page-content flex-grow overflow-y-auto">
+                <h2 class="text-3xl font-bold mb-6 text-center">Recent Chats</h2>
+                <div id="recents-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+                <p id="no-recents-text" class="text-center text-gray-400 mt-8">No history found. Log in to save your chats.</p>
+            </div>
+            <div id="settings-page-content" class="hidden page-content flex-grow overflow-y-auto">
+                 <h2 class="text-3xl font-bold mb-6 text-center">Settings</h2>
+                <div class="max-w-md mx-auto space-y-4 p-6 rounded-xl glassmorphism">
+                    <div id="user-info" class="text-center mb-4"><p>Status: <span id="login-status" class="font-semibold">Not Logged In</span></p><p id="user-email-display" class="text-gray-400"></p></div>
+                    <button id="settings-login-logout-btn" class="w-full px-6 py-3 text-white font-semibold rounded-lg shadow-md transition-transform transform hover:scale-105" style="background-image: linear-gradient(to right, #c13584, #833ab4);">Login</button>
+                    <button id="delete-history-btn" class="w-full px-6 py-3 text-white font-semibold rounded-lg shadow-md transition-transform transform hover:scale-105" style="background-image: linear-gradient(to right, #ef4444, #b91c1c);">Delete All History</button>
+                </div>
+            </div>
+        </main>
     </div>
+
+    <!-- Modals -->
+    <div id="auth-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-bg"><div class="p-8 rounded-2xl shadow-2xl w-full max-w-md m-4 relative glassmorphism"><button id="close-modal-btn" class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl">&times;</button><h2 id="modal-title" class="text-2xl font-bold text-center mb-6">Login</h2><div id="auth-error" class="text-red-500 text-center mb-4"></div><form id="auth-form" class="space-y-4"><input type="email" id="email-input" class="w-full p-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500" placeholder="Email" required><input type="password" id="password-input" class="w-full p-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500" placeholder="Password" required><button type="submit" id="modal-submit-btn" class="w-full px-6 py-3 text-white font-semibold rounded-lg shadow-md transition-transform transform hover:scale-105" style="background-image: linear-gradient(to right, #c13584, #833ab4);">Login</button></form><p class="text-center mt-4 text-sm text-gray-400"><span id="switch-to-register-text">Don't have an account?</span><button id="switch-auth-mode-btn" class="font-semibold text-pink-500 hover:underline">Register</button></p></div></div>
+    <div id="delete-confirm-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-bg"><div class="p-8 rounded-2xl shadow-2xl w-full max-w-md m-4 relative glassmorphism"><h2 class="text-xl font-bold text-center mb-4">Are you sure?</h2><p class="text-center text-gray-300 mb-6">This will permanently delete all your chats. This action cannot be undone.</p><div class="flex justify-center gap-4"><button id="cancel-delete-btn" class="px-8 py-2 bg-gray-600 rounded-lg hover:bg-gray-500 transition">Cancel</button><button id="confirm-delete-btn" class="px-8 py-2 bg-red-600 rounded-lg hover:bg-red-500 transition">Delete</button></div></div></div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            onAuthStateChanged,
+            createUserWithEmailAndPassword,
+            signInWithEmailAndPassword,
+            signOut
+        } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+        import { 
+            getFirestore,
+            collection,
+            addDoc,
+            getDocs,
+            doc,
+            deleteDoc,
+            query,
+            orderBy,
+            limit,
+            onSnapshot,
+            serverTimestamp,
+            updateDoc,
+            arrayUnion
+        } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDEAOr3iqU6TJZ6uztMvC5mquZECPcBkkE",
+            authDomain: "fir-config-d3c36.firebaseapp.com",
+            projectId: "fir-config-d3c36",
+            storageBucket: "fir-config-d3c36.appspot.com",
+            messagingSenderId: "477435579926",
+            appId: "1:477435579926:web:d370e9fb5a3c5a05316f37",
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let currentModel = 'anime';
+        let isLoginMode = true;
+        let currentUser = null;
+        let currentChatId = null;
+        let unsubscribeRecents = null;
+        let unsubscribeChat = null;
+
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebar-toggle');
+        const mainContent = document.getElementById('main-content');
+        const allPageContents = document.querySelectorAll('.page-content');
+        const allNavBtns = document.querySelectorAll('.sidebar-link');
+        const chatContainer = document.getElementById('chat-container');
+        const promptForm = document.getElementById('prompt-form');
+        const promptInput = document.getElementById('prompt-input');
+        const fileInputLabel = document.getElementById('file-input-label');
+        const fileInput = document.getElementById('file-input');
+        const recentsGrid = document.getElementById('recents-grid');
+        const noRecentsText = document.getElementById('no-recents-text');
+        const settingsLoginLogoutBtn = document.getElementById('settings-login-logout-btn');
+        const deleteHistoryBtn = document.getElementById('delete-history-btn');
+        const loginStatus = document.getElementById('login-status');
+        const userEmailDisplay = document.getElementById('user-email-display');
+        const authModal = document.getElementById('auth-modal');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const authForm = document.getElementById('auth-form');
+        const modalTitle = document.getElementById('modal-title');
+        const modalSubmitBtn = document.getElementById('modal-submit-btn');
+        const switchAuthModeBtn = document.getElementById('switch-auth-mode-btn');
+        const switchToRegisterText = document.getElementById('switch-to-register-text');
+        const authError = document.getElementById('auth-error');
+        const emailInput = document.getElementById('email-input');
+        const passwordInput = document.getElementById('password-input');
+        const deleteConfirmModal = document.getElementById('delete-confirm-modal');
+        const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
+        const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+        const modelSwitcherContainer = document.getElementById('model-switcher-container');
+        const modelSelectorBtn = document.getElementById('model-selector-btn');
+        const modelDropdown = document.getElementById('model-dropdown');
+        const dropdownArrow = document.getElementById('dropdown-arrow');
+        const selectedModelName = document.getElementById('selected-model-name');
+        const modelOptions = document.querySelectorAll('.model-option');
+
+        function showNotification(message, type = 'info') {
+            const container = document.getElementById('notification-container');
+            const notification = document.createElement('div');
+            const colors = { info: 'bg-blue-600', success: 'bg-green-600', error: 'bg-red-600' };
+            notification.className = `p-4 rounded-lg text-white shadow-lg transform transition-all duration-300 ease-in-out translate-x-full opacity-0`;
+            notification.classList.add(colors[type] || colors.info);
+            notification.textContent = message;
+            container.appendChild(notification);
+            setTimeout(() => { notification.classList.remove('translate-x-full', 'opacity-0'); }, 10);
+            setTimeout(() => {
+                notification.classList.add('opacity-0');
+                notification.addEventListener('transitionend', () => notification.remove());
+            }, 4000);
+        }
+
+        onAuthStateChanged(auth, user => {
+            currentUser = user;
+            updateAuthUI();
+            if (unsubscribeRecents) unsubscribeRecents();
+            if (unsubscribeChat) unsubscribeChat();
+
+            if (user) {
+                listenForRecents();
+            } else {
+                updateRecentsTab([]);
+            }
+            startNewChat();
+        });
+
+        sidebarToggle.addEventListener('click', e => {
+            e.stopPropagation();
+            if (window.innerWidth < 1024) {
+                sidebar.classList.toggle('-translate-x-full');
+            } else {
+                mainContent.classList.toggle('lg:ml-64');
+                sidebar.classList.toggle('lg:translate-x-0');
+            }
+        });
+
+        document.addEventListener('click', e => {
+            if (!sidebar.contains(e.target) && !sidebarToggle.contains(e.target) && window.innerWidth < 1024) {
+                if (!sidebar.classList.contains('-translate-x-full')) {
+                    sidebar.classList.add('-translate-x-full');
+                }
+            }
+        });
+
+        function switchPage(pageName) {
+            allPageContents.forEach(page => page.classList.add('hidden'));
+            allNavBtns.forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`${pageName}-page-content`).classList.remove('hidden');
+            document.getElementById(`nav-${pageName}-btn`).classList.add('active');
+            modelSwitcherContainer.classList.toggle('hidden', pageName !== 'generator');
+        }
+
+        allNavBtns.forEach(btn => {
+            btn.addEventListener('click', e => {
+                e.preventDefault();
+                const pageName = btn.id.replace('nav-', '').replace('-btn', '');
+                if (pageName === 'new-chat') {
+                    startNewChat();
+                } else {
+                    switchPage(pageName);
+                }
+                if (window.innerWidth < 1024) sidebar.classList.add('-translate-x-full');
+            });
+        });
+
+        modelSelectorBtn.addEventListener('click', () => {
+            modelDropdown.classList.toggle('hidden');
+            dropdownArrow.classList.toggle('rotate-180');
+        });
+
+        document.addEventListener('click', e => {
+            if (!modelSelectorBtn.contains(e.target) && !modelDropdown.contains(e.target)) {
+                modelDropdown.classList.add('hidden');
+                dropdownArrow.classList.remove('rotate-180');
+            }
+        });
+
+        modelOptions.forEach(option => {
+            option.addEventListener('click', e => {
+                e.preventDefault();
+                const newModel = option.dataset.model;
+                if (currentModel !== newModel) {
+                    currentModel = newModel;
+                    selectedModelName.textContent = option.textContent;
+                    fileInputLabel.style.display = currentModel === 'anime' ? 'block' : 'none';
+                    startNewChat();
+                }
+                modelDropdown.classList.add('hidden');
+                dropdownArrow.classList.remove('rotate-180');
+            });
+        });
+
+        function startNewChat() {
+            if (unsubscribeChat) unsubscribeChat();
+            currentChatId = null;
+            chatContainer.innerHTML = `<div class="text-center p-8 flex-grow flex flex-col justify-center items-center">
+                <div>
+                    <h1 class="text-5xl font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">AI Generator</h1>
+                    <p class="text-gray-400 mt-2">Your chat with <strong>${currentModel === 'anime' ? 'Anime Generator' : 'Chat Assistant'}</strong> will appear here.</p>
+                </div>
+            </div>`;
+            switchPage('generator');
+        }
+
+        function loadChat(chatId) {
+            if (!currentUser) return;
+            if (unsubscribeChat) unsubscribeChat();
+
+            currentChatId = chatId;
+            switchPage('generator');
+            chatContainer.innerHTML = '';
+
+            const chatRef = doc(db, 'users', currentUser.uid, 'chats', chatId);
+            unsubscribeChat = onSnapshot(chatRef, (doc) => {
+                chatContainer.innerHTML = '';
+                if (doc.exists()) {
+                    const chatData = doc.data();
+                    if(chatData.messages) {
+                        chatData.messages.forEach(addMessageToChat);
+                    }
+                } else {
+                    startNewChat();
+                }
+            });
+        }
+
+        function addMessageToChat(message) {
+            const { content, sender, type } = message;
+            const welcomeMessage = chatContainer.querySelector('.text-center');
+            if (welcomeMessage) welcomeMessage.remove();
+
+            const bubble = document.createElement('div');
+            const messageContent = document.createElement('div');
+
+            if (sender === 'user') {
+                bubble.className = 'w-full flex justify-end';
+                messageContent.className = 'chat-bubble user-bubble';
+            } else {
+                bubble.className = 'w-full flex justify-start';
+                messageContent.className = 'chat-bubble ai-bubble';
+            }
+
+            if (sender === 'ai' && type === 'loader') {
+                messageContent.innerHTML = `<div class="loader"></div>`;
+            } else if (type === 'image') {
+                messageContent.innerHTML = `<img src="${content}" class="rounded-lg w-full max-w-md">`;
+            } else {
+                messageContent.innerHTML = content;
+            }
+
+            bubble.appendChild(messageContent);
+            chatContainer.appendChild(bubble);
+
+            messageContent.querySelectorAll('pre').forEach(pre => {
+                const copyButton = document.createElement('button');
+                copyButton.className = 'copy-btn';
+                copyButton.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>`;
+                pre.appendChild(copyButton);
+                copyButton.addEventListener('click', () => {
+                    const textToCopy = pre.innerText;
+                    navigator.clipboard.writeText(textToCopy).then(() => {
+                        showNotification('Copied to clipboard!', 'success');
+                    });
+                });
+            });
+
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            return bubble;
+        }
+
+        function listenForRecents() {
+            if (unsubscribeRecents) unsubscribeRecents();
+            if (!currentUser) return;
+
+            const recentsQuery = query(collection(db, 'users', currentUser.uid, 'chats'), orderBy('lastUpdated', 'desc'), limit(10));
+            unsubscribeRecents = onSnapshot(recentsQuery, (snapshot) => {
+                const chats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                updateRecentsTab(chats);
+            }, (error) => {
+                console.error("Error listening to recents: ", error);
+                showNotification("Could not load recent chats.", "error");
+            });
+        }
+
+        function updateRecentsTab(chats) {
+            recentsGrid.innerHTML = '';
+            if (!currentUser) {
+                noRecentsText.textContent = 'Log in to see your chat history.';
+                noRecentsText.classList.remove('hidden');
+                return;
+            }
+            if (chats.length === 0) {
+                noRecentsText.textContent = 'No chat history found.';
+                noRecentsText.classList.remove('hidden');
+            } else {
+                noRecentsText.classList.add('hidden');
+                chats.forEach(chat => {
+                    const lastMessage = chat.messages && chat.messages.length > 0 ? chat.messages[chat.messages.length - 1] : { content: 'No messages yet...' };
+                    const card = document.createElement('div');
+                    card.className = 'p-4 rounded-lg glassmorphism cursor-pointer hover:bg-pink-600/20 transition-colors';
+                    card.innerHTML = `
+                        <h3 class="font-bold truncate">${chat.title || 'Untitled Chat'}</h3>
+                        <p class="text-sm text-gray-400 truncate mt-1">${lastMessage.content.startsWith('data:image') ? 'Image response' : lastMessage.content.replace(/<[^>]*>?/gm, '')}</p>
+                    `;
+                    card.onclick = () => loadChat(chat.id);
+                    recentsGrid.appendChild(card);
+                });
+            }
+        }
+
+        async function createNewChatInDb() {
+            if (!currentUser) return null;
+            try {
+                const docRef = await addDoc(collection(db, 'users', currentUser.uid, 'chats'), {
+                    title: `${currentModel === 'anime' ? 'Anime' : 'Chat'} on ${new Date().toLocaleDateString()}`,
+                    model: currentModel,
+                    messages: [],
+                    lastUpdated: serverTimestamp()
+                });
+                return docRef.id;
+            } catch (e) {
+                console.error("Error creating new chat: ", e);
+                showNotification("Could not start a new chat.", "error");
+                return null;
+            }
+        }
+
+        promptInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                promptForm.requestSubmit();
+            }
+        });
+
+        promptForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const prompt = promptInput.value.trim();
+            if (!prompt) return;
+
+            let chatId = currentChatId;
+            if (currentUser && !chatId) {
+                chatId = await createNewChatInDb();
+                if (!chatId) return;
+                loadChat(chatId);
+            }
+
+            if (currentUser && chatId) {
+                const chatRef = doc(db, 'users', currentUser.uid, 'chats', chatId);
+                await updateDoc(chatRef, {
+                    messages: arrayUnion({sender: 'user', content: prompt, timestamp: serverTimestamp()})
+                });
+            } else {
+                addMessageToChat({ content: prompt, sender: 'user' });
+            }
+
+            const loaderBubble = addMessageToChat({ content: '', sender: 'ai', type: 'loader' });
+
+            let endpoint, body, headers = {};
+            if (currentUser) {
+                const token = await currentUser.getIdToken();
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            if (currentModel === 'anime') {
+                endpoint = '/generate';
+                const formData = new FormData();
+                formData.append('prompt', prompt);
+                if (currentUser) formData.append('chat_id', chatId);
+                body = formData;
+            } else {
+                endpoint = '/chat';
+                headers['Content-Type'] = 'application/json';
+                body = JSON.stringify({ 
+                    prompt: prompt,
+                    chat_id: currentUser ? chatId : null
+                });
+            }
+
+            promptInput.value = '';
+            promptInput.style.height = 'auto';
+
+            try {
+                const response = await fetch(endpoint, { method: 'POST', headers, body });
+                if (!response.ok) {
+                    const data = await response.json();
+                    const errorMessage = `Error: ${data.error || 'An unknown error occurred.'}`;
+                    if (currentUser && chatId) {
+                        const chatRef = doc(db, 'users', currentUser.uid, 'chats', chatId);
+                        await updateDoc(chatRef, {
+                            messages: arrayUnion({sender: 'ai', content: errorMessage, timestamp: serverTimestamp()})
+                        });
+                    } else {
+                        addMessageToChat({ content: errorMessage, sender: 'ai'});
+                    }
+                }
+            } catch (error) {
+                 const networkErrorMessage = `Network Error: ${error.message}`;
+                 if (currentUser && chatId) {
+                    const chatRef = doc(db, 'users', currentUser.uid, 'chats', chatId);
+                    await updateDoc(chatRef, {
+                        messages: arrayUnion({sender: 'ai', content: networkErrorMessage, timestamp: serverTimestamp()})
+                    });
+                 } else {
+                    addMessageToChat({ content: networkErrorMessage, sender: 'ai'});
+                 }
+            } finally {
+                loaderBubble.remove();
+            }
+        });
+
+        function updateAuthUI() {
+            if (currentUser) {
+                loginStatus.textContent = 'Logged In';
+                userEmailDisplay.textContent = currentUser.email;
+                settingsLoginLogoutBtn.textContent = 'Logout';
+                deleteHistoryBtn.classList.remove('hidden');
+            } else {
+                loginStatus.textContent = 'Not Logged In';
+                userEmailDisplay.textContent = '';
+                settingsLoginLogoutBtn.textContent = 'Login';
+                deleteHistoryBtn.classList.add('hidden');
+            }
+        }
+
+        function toggleAuthModal(show) {
+            authModal.classList.toggle('hidden', !show);
+        }
+
+        function switchAuthMode() {
+            isLoginMode = !isLoginMode;
+            modalTitle.textContent = isLoginMode ? 'Login' : 'Register';
+            modalSubmitBtn.textContent = isLoginMode ? 'Login' : 'Register';
+            switchToRegisterText.textContent = isLoginMode ? "Don't have an account?" : "Already have an account?";
+            switchAuthModeBtn.textContent = isLoginMode ? 'Register' : 'Login';
+            authError.textContent = '';
+            authForm.reset();
+        }
+
+        settingsLoginLogoutBtn.addEventListener('click', () => {
+            if (currentUser) {
+                signOut(auth).then(() => {
+                    showNotification('You have been logged out.', 'info');
+                });
+            } else {
+                toggleAuthModal(true);
+            }
+        });
+
+        closeModalBtn.addEventListener('click', () => toggleAuthModal(false));
+        switchAuthModeBtn.addEventListener('click', switchAuthMode);
+
+        authForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = emailInput.value;
+            const password = passwordInput.value;
+            authError.textContent = '';
+
+            try {
+                if (isLoginMode) {
+                    await signInWithEmailAndPassword(auth, email, password);
+                    showNotification('Login successful!', 'success');
+                } else {
+                    await createUserWithEmailAndPassword(auth, email, password);
+                    showNotification('Registration successful! Please log in.', 'success');
+                }
+                toggleAuthModal(false);
+                authForm.reset();
+            } catch (error) {
+                authError.textContent = error.message;
+            }
+        });
+
+        deleteHistoryBtn.addEventListener('click', () => {
+            deleteConfirmModal.classList.remove('hidden');
+        });
+
+        cancelDeleteBtn.addEventListener('click', () => {
+            deleteConfirmModal.classList.add('hidden');
+        });
+
+        confirmDeleteBtn.addEventListener('click', async () => {
+            if (!currentUser) return;
+            showNotification("Deleting all chats...", "info");
+            const chatsRef = collection(db, 'users', currentUser.uid, 'chats');
+            const querySnapshot = await getDocs(chatsRef);
+            const deletePromises = [];
+            querySnapshot.forEach((doc) => {
+                deletePromises.push(deleteDoc(doc.ref));
+            });
+            try {
+                await Promise.all(deletePromises);
+                showNotification("All chats have been deleted.", "success");
+            } catch (error) {
+                console.error("Error deleting chats: ", error);
+                showNotification("Failed to delete all chats.", "error");
+            }
+            deleteConfirmModal.classList.add('hidden');
+        });
+
+    </script>
 </body>
 </html>
+
+

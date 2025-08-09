@@ -1,89 +1,163 @@
 import os
-import requests
 import base64
-import io  # Required to handle image data in memory
-from flask import Flask, render_template, request
-from PIL import Image  # Import the Pillow library for image manipulation
+import json
+import requests
+import google.generativeai as genai
+from flask import Flask, request, jsonify, render_template
+from flask_cors import CORS
+from functools import wraps
+from io import BytesIO
+from PIL import Image
 
-# --- Setup ---
-app = Flask(__name__)
+# --- Firebase Admin SDK Setup ---
+import firebase_admin
+from firebase_admin import credentials, firestore, auth
 
-# Get the API key from Replit Secrets
-api_key = os.environ.get("API_KEY")
-api_host = 'https://api.stability.ai'
-engine_id = "stable-diffusion-v1-6"
+# --- App Initialization & Configuration ---
+app = Flask(__name__, template_folder='.')
+CORS(app)
 
-# --- Web Routes ---
+# --- Configure API Keys & Firebase from Environment Secrets ---
+app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'a-very-secret-key-for-dev')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
-# This route shows the main page
+# Initialize Gemini
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+
+    print("Gemini API configured successfully.")
+else:
+    print("CRITICAL: GEMINI_API_KEY environment variable not set. Core features will fail.")
+
+# Initialize Firebase Admin
+try:
+    service_account_json_str = os.environ.get('FIREBASE_SERVICE_ACCOUNT_JSON')
+    if not service_account_json_str:
+        raise ValueError("FIREBASE_SERVICE_ACCOUNT_JSON secret not found.")
+
+    service_account_info = json.loads(service_account_json_str)
+    cred = credentials.Certificate(service_account_info)
+    firebase_admin.initialize_app(cred)
+    db = firestore.client()
+    print("Firebase Admin SDK initialized successfully.")
+except Exception as e:
+    print(f"CRITICAL: Firebase Admin SDK failed to initialize. Error: {e}")
+    db = None
+
+# --- Authentication Decorator ---
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+        if 'Authorization' in request.headers:
+            token = request.headers['Authorization'].split(" ")[1]
+        if not token:
+            return f(None, *args, **kwargs)
+        try:
+            decoded_token = auth.verify_id_token(token)
+            current_user = {'uid': decoded_token['uid']}
+        except Exception as e:
+            print(f"Token verification failed: {e}")
+            return f(None, *args, **kwargs)
+        return f(current_user, *args, **kwargs)
+    return decorated
+
+# --- Frontend Serving Route ---
 @app.route('/')
-def home():
+def index():
     return render_template('index.html')
 
-# This route is called when the user clicks "Generate Image"
+# --- Core API Routes (Powered by Gemini) ---
+
 @app.route('/generate', methods=['POST'])
-def generate():
-    # --- 1. Get User Input from the Form ---
-    user_prompt = request.form.get('prompt')
-    overlay_file = request.files.get('overlay_image') # Get the uploaded file
+@token_required
+def generate_anime(current_user):
+    if not GEMINI_API_KEY:
+        return jsonify({'error': 'Server is not configured for image generation.'}), 500
 
-    # Add style details to the prompt for better results
-    full_prompt = f"anime artwork, anime style, key visual, vibrant, studio anime, highly detailed, {user_prompt}"
+    prompt = request.form.get('prompt')
+    if not prompt:
+        return jsonify({'error': 'Prompt is required.'}), 400
 
-    # --- 2. Call the Stability AI API to Generate the Base Image ---
-    response = requests.post(
-        f"{api_host}/v1/generation/{engine_id}/text-to-image",
-        headers={
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "Authorization": f"Bearer {api_key}"
-        },
-        json={
-            "text_prompts": [{"text": full_prompt}],
-            "cfg_scale": 7, "height": 512, "width": 512,
-            "samples": 1, "steps": 30,
-        },
-    )
+    try:
+        image_model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        generation_prompt = f"Generate a high-quality, artistic anime-style image of: {prompt}. Style: digital painting, masterpiece, best quality, vibrant colors."
+        response = image_model.generate_content(generation_prompt)
 
-    # Handle API errors
-    if response.status_code != 200:
-        return render_template('index.html', error="API call failed. Check your key or the API server status.")
+        if not response.parts:
+            if response.prompt_feedback.block_reason:
+                raise ValueError(f"Image generation blocked due to: {response.prompt_feedback.block_reason.name}")
+            else:
+                raise ValueError("Image generation failed for an unknown reason.")
 
-    data = response.json()
-    base_image_data = None
-    for image in data["artifacts"]:
-        base_image_data = base64.b64decode(image["base64"])
+        image_part = response.parts[0]
+        if not hasattr(image_part, 'inline_data'):
+             raise ValueError("Could not extract image data from the AI response.")
 
-    if not base_image_data:
-        return render_template('index.html', error="Failed to generate the base image.")
+        img_bytes = image_part.inline_data.data
+        img_str = base64.b64encode(img_bytes).decode('utf-8')
+        mime_type = image_part.inline_data.mime_type
+        image_data_url = f'data:{mime_type};base64,{img_str}'
 
-    # --- 3. Combine the Images using Pillow ---
-    # Open the generated image from its raw data
-    base_image = Image.open(io.BytesIO(base_image_data)).convert("RGBA")
+        # --- FIXED: Only save the AI's response to Firestore ---
+        if current_user and db:
+            chat_id = request.form.get('chat_id')
+            if chat_id:
+                chat_ref = db.collection('users').document(current_user['uid']).collection('chats').document(chat_id)
+                chat_ref.update({
+                    'messages': firestore.ArrayUnion([
+                        {'sender': 'ai', 'content': image_data_url, 'type': 'image', 'timestamp': firestore.SERVER_TIMESTAMP}
+                    ]),
+                    'lastUpdated': firestore.SERVER_TIMESTAMP
+                })
 
-    # Check if the user actually uploaded a file
-    if overlay_file and overlay_file.filename != '':
-        # Open the uploaded image
-        overlay_image = Image.open(overlay_file.stream).convert("RGBA")
+        return jsonify({'image_url': image_data_url})
 
-        # Resize the overlay to be smaller (e.g., 150x150 pixels)
-        overlay_image = overlay_image.resize((150, 150))
+    except Exception as e:
+        print(f"Error in /generate: {e}")
+        return jsonify({'error': f"An error occurred with the AI model: {e}"}), 500
 
-        # Define where to paste it (top-right corner with 10px padding)
-        position = (base_image.width - overlay_image.width - 10, 10)
+@app.route('/chat', methods=['POST'])
+@token_required
+def handle_chat(current_user):
+    if not GEMINI_API_KEY:
+        return jsonify({'error': 'Server is not configured for chat.'}), 500
 
-        # Paste the overlay onto the base image. The 'overlay_image' is used
-        # as a mask to handle transparent backgrounds correctly.
-        base_image.paste(overlay_image, position, overlay_image)
+    data = request.get_json()
+    user_prompt = data.get('prompt')
+    if not user_prompt:
+        return jsonify({'error': 'A prompt is required.'}), 400
 
-    # --- 4. Save and Display the Final Image ---
-    final_image_path = "static/generated/final_output.png"
-    base_image.save(final_image_path)
+    try:
+        model = genai.GenerativeModel('gemini-1.5-pro-latest')
+        system_prompt = (
+            "You are a helpful and friendly chat assistant. "
+            "If the user asks a math or equation-related question, solve it and provide the solution in a simple, clean HTML format. Use <p> for text and a <pre> tag with a dark background for the final equation or result. "
+            "For all other questions, provide a conversational and helpful response in plain text or simple HTML."
+        )
 
-    # Send the path to the final image back to the HTML
-    return render_template('index.html', image_url="/" + final_image_path, prompt=user_prompt)
+        response = model.generate_content(f"{system_prompt}\n\nUser: {user_prompt}")
+        solution_html = response.text
 
-# --- Run the App ---
+        # --- FIXED: Only save the AI's response to Firestore ---
+        if current_user and db:
+            chat_id = data.get('chat_id')
+            if chat_id:
+                chat_ref = db.collection('users').document(current_user['uid']).collection('chats').document(chat_id)
+                chat_ref.update({
+                    'messages': firestore.ArrayUnion([
+                        {'sender': 'ai', 'content': solution_html, 'type': 'text', 'timestamp': firestore.SERVER_TIMESTAMP}
+                    ]),
+                    'lastUpdated': firestore.SERVER_TIMESTAMP
+                })
+
+        return jsonify({'solution': solution_html})
+
+    except Exception as e:
+        print(f"Error during chat: {e}")
+        error_html = f"<p>Could not process your request for: <b>{user_prompt}</b></p><p class='mt-2 text-red-400'>Error: The AI model failed to respond.</p>"
+        return jsonify({'error': error_html}), 500
+
+# --- Main Execution ---
 if __name__ == '__main__':
-    # This makes the app accessible in Replit's webview
-    app.run(host='0.0.0.0', port=81)
+    app.run(host='0.0.0.0', port=8080)
