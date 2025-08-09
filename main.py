@@ -77,11 +77,11 @@ def generate_anime(current_user):
     try:
         # Initialize the Gemini model with error handling
         try:
-            model = genai.GenerativeModel('gemini-1.5-pro')
-        except AttributeError as e:
+            model = genai.GenerativeModel('gemini-1.5-flash')
+        except Exception as e:
             print(f"Error initializing GenerativeModel: {e}")
             return jsonify({'error': 'AI model initialization failed.'}), 500
-        
+
         generation_prompt = f"Create a detailed description for an anime-style artwork of: {prompt}. Include artistic details like color palette, composition, style, and mood."
         response = model.generate_content(generation_prompt)
 
@@ -119,11 +119,11 @@ def handle_chat(current_user):
     try:
         # Initialize the Gemini model with error handling
         try:
-            model = genai.GenerativeModel('gemini-1.5-pro')
-        except AttributeError as e:
+            model = genai.GenerativeModel('gemini-1.5-flash')
+        except Exception as e:
             print(f"Error initializing GenerativeModel: {e}")
             return jsonify({'error': 'AI model initialization failed.'}), 500
-        
+
         system_prompt = (
             "You are a helpful and friendly chat assistant. "
             "If the user asks a math or equation-related question, solve it and provide the solution in a simple, clean HTML format. Use <p> for text and a <pre> tag with a dark background for the final equation or result. "
