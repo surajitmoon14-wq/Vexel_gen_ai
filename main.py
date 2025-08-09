@@ -6,7 +6,6 @@ import google.generativeai as genai
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from functools import wraps
-from io import BytesIO
 from PIL import Image
 
 # --- Firebase Admin SDK Setup ---
@@ -14,7 +13,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore, auth
 
 # --- App Initialization & Configuration ---
-app = Flask(__name__, template_folder='.')
+app = Flask(__name__, template_folder='templates')
 CORS(app)
 
 # --- Configure API Keys & Firebase from Environment Secrets ---
