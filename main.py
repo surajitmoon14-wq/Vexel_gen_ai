@@ -36,6 +36,20 @@ db = None
 try:
     service_account_json_str = os.environ.get('FIREBASE_SERVICE_ACCOUNT_JSON')
     if not service_account_json_str:
+        print("⚠️ WARNING: FIREBASE_SERVICE_ACCOUNT_JSON secret not found. Creating template...")
+        print("Copy this template to your FIREBASE_SERVICE_ACCOUNT_JSON secret:")
+        print(json.dumps({
+            "type": "service_account",
+            "project_id": "your-project-id",
+            "private_key_id": "your-private-key-id",
+            "private_key": "-----BEGIN PRIVATE KEY-----\\nYOUR_PRIVATE_KEY_HERE\\n-----END PRIVATE KEY-----\\n",
+            "client_email": "your-service-account@your-project-id.iam.gserviceaccount.com",
+            "client_id": "your-client-id",
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/your-service-account%40your-project-id.iam.gserviceaccount.com"
+        }, indent=2))
         raise ValueError("FIREBASE_SERVICE_ACCOUNT_JSON secret not found.")
     
     # Strip whitespace and check for common issues
@@ -43,14 +57,7 @@ try:
     if not service_account_json_str.startswith('{'):
         raise ValueError("JSON string does not start with '{'")
     
-    # Fix common JSON formatting issues
-    # Replace single quotes with double quotes
-    service_account_json_str = service_account_json_str.replace("'", '"')
-    
-    # Remove any trailing commas before closing braces/brackets
-    import re
-    service_account_json_str = re.sub(r',(\s*[}\]])', r'\1', service_account_json_str)
-    
+    # Try to parse as-is first
     service_account_info = json.loads(service_account_json_str)
     
     # Validate required fields
@@ -65,11 +72,22 @@ try:
     print("✅ Firebase Admin SDK initialized successfully.")
 except json.JSONDecodeError as e:
     print(f"⚠️ WARNING: Firebase JSON is malformed. Error at line {e.lineno}, column {e.colno}: {e.msg}")
-    print("Common issues:")
-    print("- Property names must be in double quotes, not single quotes")
-    print("- No trailing commas before closing braces")
-    print("- Escape sequences in private_key must use double backslashes")
-    print("Please check your FIREBASE_SERVICE_ACCOUNT_JSON secret format.")
+    print("\n🔧 FIREBASE JSON TEMPLATE - Copy this to your FIREBASE_SERVICE_ACCOUNT_JSON secret:")
+    print("=" * 80)
+    print(json.dumps({
+        "type": "service_account",
+        "project_id": "your-project-id",
+        "private_key_id": "your-private-key-id", 
+        "private_key": "-----BEGIN PRIVATE KEY-----\\nYOUR_PRIVATE_KEY_HERE\\n-----END PRIVATE KEY-----\\n",
+        "client_email": "your-service-account@your-project-id.iam.gserviceaccount.com",
+        "client_id": "your-client-id",
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/your-service-account%40your-project-id.iam.gserviceaccount.com"
+    }, indent=2))
+    print("=" * 80)
+    print("Replace the placeholder values with your actual Firebase service account details.")
     db = None
 except Exception as e:
     print(f"⚠️ WARNING: Firebase Admin SDK failed to initialize. Chat history will not be saved. Error: {e}")
@@ -184,4 +202,4 @@ def handle_chat(current_user):
 
 # --- Main Execution ---
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)
+    app.run(host='0.0.0.0', port=8080, debug=False)
