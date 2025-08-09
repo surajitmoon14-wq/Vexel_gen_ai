@@ -28,13 +28,29 @@ else:
 try:
     service_account_json_str = os.environ.get('FIREBASE_SERVICE_ACCOUNT_JSON')
     if not service_account_json_str:
-        raise ValueError("FIREBASE_SERVICE_ACCOUNT_JSON secret not found.")
-
-    service_account_info = json.loads(service_account_json_str)
-    cred = credentials.Certificate(service_account_info)
-    firebase_admin.initialize_app(cred)
-    db = firestore.client()
-    print("Firebase Admin SDK initialized successfully.")
+        print("WARNING: FIREBASE_SERVICE_ACCOUNT_JSON secret not found. Firebase features will be disabled.")
+        db = None
+    else:
+        # Clean up the JSON string - remove any extra whitespace or formatting issues
+        service_account_json_str = service_account_json_str.strip()
+        
+        # Try to parse the JSON
+        service_account_info = json.loads(service_account_json_str)
+        
+        # Validate required fields
+        required_fields = ['type', 'project_id', 'private_key', 'client_email']
+        for field in required_fields:
+            if field not in service_account_info:
+                raise ValueError(f"Missing required field '{field}' in service account JSON")
+        
+        cred = credentials.Certificate(service_account_info)
+        firebase_admin.initialize_app(cred)
+        db = firestore.client()
+        print("Firebase Admin SDK initialized successfully.")
+except json.JSONDecodeError as e:
+    print(f"CRITICAL: Invalid JSON in FIREBASE_SERVICE_ACCOUNT_JSON. Error: {e}")
+    print("Please check that your Firebase service account JSON is properly formatted.")
+    db = None
 except Exception as e:
     print(f"CRITICAL: Firebase Admin SDK failed to initialize. Error: {e}")
     db = None
