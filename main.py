@@ -20,6 +20,7 @@ GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
 # Initialize Gemini
 if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
     print("Gemini API key loaded successfully.")
 else:
     print("CRITICAL: GEMINI_API_KEY environment variable not set. Core features will fail.")
@@ -75,7 +76,7 @@ def generate_anime(current_user):
         return jsonify({'error': 'Prompt is required.'}), 400
 
     try:
-        image_model = genai.GenerativeModel('gemini-1.5-flash-latest', api_key=GEMINI_API_KEY)
+        image_model = genai.GenerativeModel('gemini-1.5-flash-latest')
         generation_prompt = f"Generate a high-quality, artistic anime-style image of: {prompt}. Style: digital painting, masterpiece, best quality, vibrant colors."
         response = image_model.generate_content(generation_prompt)
 
@@ -124,7 +125,7 @@ def handle_chat(current_user):
         return jsonify({'error': 'A prompt is required.'}), 400
 
     try:
-        model = genai.GenerativeModel('gemini-1.5-pro-latest', api_key=GEMINI_API_KEY)
+        model = genai.GenerativeModel('gemini-1.5-pro-latest')
         system_prompt = (
             "You are a helpful and friendly chat assistant. "
             "If the user asks a math or equation-related question, solve it and provide the solution in a simple, clean HTML format. Use <p> for text and a <pre> tag with a dark background for the final equation or result. "
