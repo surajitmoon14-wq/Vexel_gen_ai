@@ -69,45 +69,32 @@ def index():
 @token_required
 def generate_anime(current_user):
     if not GEMINI_API_KEY:
-        return jsonify({'error': 'Server is not configured for image generation.'}), 500
+        return jsonify({'error': 'Server is not configured for text generation.'}), 500
 
     prompt = request.form.get('prompt')
     if not prompt:
         return jsonify({'error': 'Prompt is required.'}), 400
 
     try:
-        image_model = genai.GenerativeModel('gemini-1.5-flash-latest')
-        generation_prompt = f"Generate a high-quality, artistic anime-style image of: {prompt}. Style: digital painting, masterpiece, best quality, vibrant colors."
-        response = image_model.generate_content(generation_prompt)
+        model = genai.GenerativeModel('gemini-1.5-pro')
+        generation_prompt = f"Create a detailed description for an anime-style artwork of: {prompt}. Include artistic details like color palette, composition, style, and mood."
+        response = model.generate_content(generation_prompt)
 
-        if not response.parts:
-            if response.prompt_feedback.block_reason:
-                raise ValueError(f"Image generation blocked due to: {response.prompt_feedback.block_reason.name}")
-            else:
-                raise ValueError("Image generation failed for an unknown reason.")
+        description = response.text
 
-        image_part = response.parts[0]
-        if not hasattr(image_part, 'inline_data'):
-             raise ValueError("Could not extract image data from the AI response.")
-
-        img_bytes = image_part.inline_data.data
-        img_str = base64.b64encode(img_bytes).decode('utf-8')
-        mime_type = image_part.inline_data.mime_type
-        image_data_url = f'data:{mime_type};base64,{img_str}'
-
-        # --- FIXED: Only save the AI's response to Firestore ---
+        # Save the AI's response to Firestore
         if current_user and db:
             chat_id = request.form.get('chat_id')
             if chat_id:
                 chat_ref = db.collection('users').document(current_user['uid']).collection('chats').document(chat_id)
                 chat_ref.update({
                     'messages': firestore.ArrayUnion([
-                        {'sender': 'ai', 'content': image_data_url, 'type': 'image', 'timestamp': firestore.SERVER_TIMESTAMP}
+                        {'sender': 'ai', 'content': description, 'type': 'text', 'timestamp': firestore.SERVER_TIMESTAMP}
                     ]),
                     'lastUpdated': firestore.SERVER_TIMESTAMP
                 })
 
-        return jsonify({'image_url': image_data_url})
+        return jsonify({'description': description})
 
     except Exception as e:
         print(f"Error in /generate: {e}")
@@ -125,7 +112,7 @@ def handle_chat(current_user):
         return jsonify({'error': 'A prompt is required.'}), 400
 
     try:
-        model = genai.GenerativeModel('gemini-1.5-pro-latest')
+        model = genai.GenerativeModel('gemini-1.5-pro')
         system_prompt = (
             "You are a helpful and friendly chat assistant. "
             "If the user asks a math or equation-related question, solve it and provide the solution in a simple, clean HTML format. Use <p> for text and a <pre> tag with a dark background for the final equation or result. "
