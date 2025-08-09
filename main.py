@@ -10,8 +10,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore, auth
 
 # --- App Initialization & Configuration ---
-# The template_folder='templates' is the default, so it can be omitted for cleaner code.
-app = Flask(__name__)
+app = Flask(__name__, template_folder='templates')
 CORS(app)
 
 # --- Configure API Keys & Firebase from Environment Secrets ---
@@ -20,20 +19,10 @@ GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
 # Initialize Gemini
 if GEMINI_API_KEY:
-    try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        print("Gemini API key loaded successfully.")
-        # Create a single, global model instance for reuse
-        ai_model = genai.GenerativeModel('gemini-1.5-pro')
-    except AttributeError:
-        # Fallback for older API versions
-        print("Using fallback Gemini initialization.")
-        ai_model = genai.GenerativeModel('gemini-1.5-pro')
-        # Set API key as environment variable as fallback
-        os.environ['GOOGLE_API_KEY'] = GEMINI_API_KEY
+    genai.configure(api_key=GEMINI_API_KEY)
+    print("Gemini API key loaded successfully.")
 else:
     print("CRITICAL: GEMINI_API_KEY environment variable not set. Core features will fail.")
-    ai_model = None # Ensure ai_model exists even if initialization fails
 
 # Initialize Firebase Admin
 try:
@@ -78,23 +67,29 @@ def index():
 @app.route('/generate', methods=['POST'])
 @token_required
 def generate_anime(current_user):
-    if not ai_model:
+    if not GEMINI_API_KEY:
         return jsonify({'error': 'Server is not configured for text generation.'}), 500
 
-    # FIX #3: Use JSON for consistency.
-    data = request.get_json()
-    prompt = data.get('prompt')
+    prompt = request.form.get('prompt')
     if not prompt:
         return jsonify({'error': 'Prompt is required.'}), 400
 
     try:
-        model = ai_model # FIX #2: Use the global model instance.
+        # Initialize the Gemini model with error handling
+        try:
+            model = genai.GenerativeModel('gemini-1.5-pro')
+        except AttributeError as e:
+            print(f"Error initializing GenerativeModel: {e}")
+            return jsonify({'error': 'AI model initialization failed.'}), 500
+        
         generation_prompt = f"Create a detailed description for an anime-style artwork of: {prompt}. Include artistic details like color palette, composition, style, and mood."
         response = model.generate_content(generation_prompt)
+
         description = response.text
 
+        # Save the AI's response to Firestore
         if current_user and db:
-            chat_id = data.get('chat_id') # FIX #3: Get chat_id from JSON data.
+            chat_id = request.form.get('chat_id')
             if chat_id:
                 chat_ref = db.collection('users').document(current_user['uid']).collection('chats').document(chat_id)
                 chat_ref.update({
@@ -103,7 +98,9 @@ def generate_anime(current_user):
                     ]),
                     'lastUpdated': firestore.SERVER_TIMESTAMP
                 })
+
         return jsonify({'description': description})
+
     except Exception as e:
         print(f"Error in /generate: {e}")
         return jsonify({'error': f"An error occurred with the AI model: {e}"}), 500
@@ -111,7 +108,7 @@ def generate_anime(current_user):
 @app.route('/chat', methods=['POST'])
 @token_required
 def handle_chat(current_user):
-    if not ai_model:
+    if not GEMINI_API_KEY:
         return jsonify({'error': 'Server is not configured for chat.'}), 500
 
     data = request.get_json()
@@ -120,15 +117,23 @@ def handle_chat(current_user):
         return jsonify({'error': 'A prompt is required.'}), 400
 
     try:
-        model = ai_model # FIX #2: Use the global model instance.
+        # Initialize the Gemini model with error handling
+        try:
+            model = genai.GenerativeModel('gemini-1.5-pro')
+        except AttributeError as e:
+            print(f"Error initializing GenerativeModel: {e}")
+            return jsonify({'error': 'AI model initialization failed.'}), 500
+        
         system_prompt = (
             "You are a helpful and friendly chat assistant. "
             "If the user asks a math or equation-related question, solve it and provide the solution in a simple, clean HTML format. Use <p> for text and a <pre> tag with a dark background for the final equation or result. "
             "For all other questions, provide a conversational and helpful response in plain text or simple HTML."
         )
+
         response = model.generate_content(f"{system_prompt}\n\nUser: {user_prompt}")
         solution_html = response.text
 
+        # --- FIXED: Only save the AI's response to Firestore ---
         if current_user and db:
             chat_id = data.get('chat_id')
             if chat_id:
@@ -139,7 +144,9 @@ def handle_chat(current_user):
                     ]),
                     'lastUpdated': firestore.SERVER_TIMESTAMP
                 })
+
         return jsonify({'solution': solution_html})
+
     except Exception as e:
         print(f"Error during chat: {e}")
         error_html = f"<p>Could not process your request for: <b>{user_prompt}</b></p><p class='mt-2 text-red-400'>Error: The AI model failed to respond.</p>"
