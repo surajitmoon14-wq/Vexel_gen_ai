@@ -37,15 +37,24 @@ try:
     service_account_json_str = os.environ.get('FIREBASE_SERVICE_ACCOUNT_JSON')
     if not service_account_json_str:
         raise ValueError("FIREBASE_SERVICE_ACCOUNT_JSON secret not found.")
-
+    
+    # Strip whitespace and check for common issues
+    service_account_json_str = service_account_json_str.strip()
+    if not service_account_json_str.startswith('{'):
+        raise ValueError("JSON string does not start with '{'")
+    
     service_account_info = json.loads(service_account_json_str)
     cred = credentials.Certificate(service_account_info)
     firebase_admin.initialize_app(cred)
     db = firestore.client()
     print("✅ Firebase Admin SDK initialized successfully.")
+except json.JSONDecodeError as e:
+    print(f"⚠️ WARNING: Firebase JSON is malformed. Error at line {e.lineno}, column {e.colno}: {e.msg}")
+    print("Please check that your FIREBASE_SERVICE_ACCOUNT_JSON secret contains valid JSON with proper double quotes around property names.")
+    db = None
 except Exception as e:
     print(f"⚠️ WARNING: Firebase Admin SDK failed to initialize. Chat history will not be saved. Error: {e}")
-    db = None # Explicitly set db to None on failure
+    db = None
 
 # --- Authentication Decorator ---
 def token_required(f):
