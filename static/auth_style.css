@@ -1,0 +1,109 @@
+/* General body styling to center content and set the animated background */
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background: linear-gradient(135deg, #4a0e69, #d946ef, #1a1a2e, #ec4899);
+    background-size: 400% 400%;
+    animation: gradientBG 18s ease infinite;
+}
+
+/* Keyframes for the background animation */
+@keyframes gradientBG {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* The main container for the login/signup form */
+.auth-container {
+    padding: 40px;
+    background: rgba(25, 25, 40, 0.7); /* Semi-transparent background */
+    backdrop-filter: blur(10px); /* The "glassmorphism" effect */
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    text-align: center;
+    color: white;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+h2 {
+    font-size: 2em;
+    font-weight: bold;
+    margin-bottom: 20px;
+}
+
+/* Styling for the input fields (username, password) */
+input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    border: 1px solid #444;
+    background: #1f2937;
+    color: white;
+    font-size: 1em;
+}
+
+input:focus {
+    outline: none;
+    border-color: #ec4899;
+    box-shadow: 0 0 0 2px rgba(236, 72, 153, 0.5);
+}
+
+/* Styling for the submit button */
+button {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    background: #8b5cf6;
+    color: white;
+    font-size: 1.1em;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+button:hover {
+    background: #7c3aed;
+}
+
+p {
+    margin-top: 20px;
+}
+
+a {
+    color: #f472b6;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* Styling for the flash messages (e.g., "Invalid password") */
+.flash {
+    padding: 10px;
+    margin-bottom: 15px;
+    border-radius: 5px;
+    text-align: center;
+    font-weight: bold;
+}
+
+.flash.danger {
+    background-color: #ef4444;
+    color: white;
+}
+
+.flash.success {
+    background-color: #22c55e;
+    color: white;
+}
