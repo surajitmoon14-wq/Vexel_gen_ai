@@ -1,0 +1,12 @@
+Flask
+fla
+sk-corsflask-bcrypt
+replit
+gunicorn
+requests
+google-generativeai
+PyPDF2
+python-docx
+gTTS
+markdown2
+tavily-python

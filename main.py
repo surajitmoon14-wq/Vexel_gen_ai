@@ -1,7 +1,11 @@
-# --- NEW IMPORTS FOR LOGIN SYSTEM ---
+# --- NEW IMPORTS FOR LOGIN SYSTEM & HISTORY ---
 from flask import redirect, url_for, session, flash
 from flask_bcrypt import Bcrypt
 from replit import db
+import json
+import time
+from datetime import datetime
+import uuid # <-- ADD THIS IMPORT FOR UNIQUE FILENAMES
 # ------------------------------------
 
 import os
@@ -19,6 +23,12 @@ CORS(app)
 app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY')
 bcrypt = Bcrypt(app)
 # ----------------------------------------
+
+# --- NEW: CREATE UPLOAD FOLDER IF IT DOESN'T EXIST ---
+UPLOAD_FOLDER = 'static/uploads'
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+# ----------------------------------------------------
 
 # --- Configure API Keys from Environment Secrets (Your code, unchanged) ---
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
@@ -38,22 +48,22 @@ if not STABILITY_API_KEY:
     print("WARNING: STABILITY_API_KEY not set. Image Generator will not work.")
 
 
-# --- MODIFIED Frontend Serving Route (This is the necessary change to protect your app) ---
+# --- MODIFIED Frontend Serving Route (Your code, unchanged) ---
 @app.route('/')
 def index():
     """Checks if user is logged in before showing the main Vexel AI app."""
     if 'username' in session:
-        # If logged in, show the app and pass the username to the template
         return render_template('index.html', username=session['username'])
-
-    # If not logged in, redirect them to the login page
     return redirect(url_for('login'))
 
 
-# --- Image Generation Route (Your code, unchanged) ---
+# --- Image Generation Route (MODIFIED to save history) ---
 @app.route('/generate', methods=['POST'])
 def generate_image():
     """Handles image generation requests using the Stability AI API."""
+    if 'username' not in session:
+        return jsonify({'error': 'Authentication required.'}), 401
+
     if not STABILITY_API_KEY:
         return jsonify(
             {'error':
@@ -83,6 +93,13 @@ def generate_image():
         if not image_b64:
             raise ValueError("No image data received from Stability AI.")
         image_data_url = f'data:image/png;base64,{image_b64}'
+
+        chat_id = request.form.get('chat_id')
+        user_message = {"sender": "user", "content": prompt, "type": "text"}
+        ai_message = {"sender": "ai", "content": image_data_url, "type": "image"}
+        save_message_to_history(session['username'], chat_id, user_message)
+        save_message_to_history(session['username'], chat_id, ai_message)
+
         return jsonify({'image_url': image_data_url})
 
     except requests.exceptions.RequestException as e:
@@ -119,100 +136,215 @@ def summarize_text():
         print(f"Error during summarization: {e}")
         return jsonify({'error': "Failed to summarize the text."}), 500
 
-
-# --- UPGRADED: Chat Assistant Route (Your code, unchanged) ---
+#
+# =========================================================================================
+# === FINAL CORRECTED CHAT ROUTE ==========================================================
+# =========================================================================================
+#
 @app.route('/chat', methods=['POST'])
 def handle_chat():
     """Handles text-based chat with different tones and file context."""
+    if 'username' not in session:
+        return jsonify({'error': 'Authentication required.'}), 401
+
     if not GEMINI_API_KEY:
         return jsonify({'error': 'Server is not configured for chat.'}), 500
 
     data = request.get_json()
-    user_prompt = data.get('prompt')
-    tone = data.get('tone', 'default')  # 'default', 'formal', 'fun', or custom
+    user_prompt = data.get('prompt', '')
+    tone = data.get('tone', 'default')
     file_content = data.get('file_content', None)
+    chat_id = data.get('chat_id')
 
-    if not user_prompt:
-        return jsonify({'error': 'A prompt is required.'}), 400
+    if not user_prompt and not file_content:
+        return jsonify({'error': 'A prompt or file is required.'}), 400
 
-    # --- IMPROVED PERSONA ---
-    # Define system prompts based on the selected tone
     system_prompts = {
-        'formal':
-        "You are a professional, formal, and highly articulate assistant. Provide precise, well-structured, and serious responses.",
-        'fun':
-        "You are a witty, fun-loving, and creative assistant. Use humor, emojis, and a lighthearted tone in your responses.",
-        'default':
-        "You are Vexel AI, a helpful and friendly assistant. Your tone should be conversational and informative, but not overly formal or casual. Provide clear and direct answers."
+        'formal': "You are a professional, formal, and highly articulate assistant. Provide precise, well-structured, and serious responses.",
+        'fun': "You are a witty, fun-loving, and creative assistant. Use humor, emojis, and a lighthearted tone in your responses.",
+        'default': "You are Vexel AI. Your tone is straightforward and helpful. Provide clear, direct answers."
     }
+    system_instruction = system_prompts.get(tone, tone)
 
-    # If the tone is custom, use it directly. Otherwise, look it up.
-    if tone in system_prompts:
-        system_prompt = system_prompts[tone]
-    else:
-        system_prompt = tone  # A custom persona prompt provided by the user
+    model_contents = []
+    prompt_part = user_prompt
+    mime_type = ""
 
-    # Construct the final prompt, including file context if it exists
-    final_prompt = f"{system_prompt}\n\n"
     if file_content:
-        final_prompt += f"Based on the content of the attached file below, please answer the user's question.\n\n[File Content]:\n{file_content}\n\n---\n\n"
-    final_prompt += f"User: {user_prompt}"
+        try:
+            header, encoded_data = file_content.split(",", 1)
+            mime_type = header.split(":")[1].split(";")[0]
+
+            if mime_type.startswith("image/"):
+                image_part = {"mime_type": mime_type, "data": encoded_data}
+                model_contents.append(prompt_part)
+                model_contents.append(image_part)
+            else:
+                text_content = base64.b64decode(encoded_data).decode('utf-8')
+                prompt_part = f"Based on the attached file, answer this:\n\n{text_content}\n\n---\n\n{prompt_part}"
+                model_contents.append(prompt_part)
+        except (ValueError, IndexError):
+            prompt_part = f"Based on this text, answer the question: {file_content}\n\n---\n\n{prompt_part}"
+            model_contents.append(prompt_part)
+    else:
+        model_contents.append(prompt_part)
 
     try:
-        model = genai.GenerativeModel('gemini-1.5-pro-latest')
-        response = model.generate_content(final_prompt)
-        return jsonify({'solution': response.text})
+        model = genai.GenerativeModel('gemini-1.5-pro-latest', system_instruction=system_instruction)
+        response = model.generate_content(model_contents)
+        solution_text = response.text
+
+        # --- SAVE TO HISTORY (MODIFIED LOGIC) ---
+        user_message = {"sender": "user", "content": user_prompt, "type": "text"}
+
+        if file_content and mime_type.startswith("image/"):
+            # Instead of saving base64, save the image file and store its URL
+            try:
+                img_data = base64.b64decode(encoded_data)
+                extension = mime_type.split('/')[-1]
+                filename = f"{uuid.uuid4()}.{extension}"
+                filepath = os.path.join(UPLOAD_FOLDER, filename)
+
+                with open(filepath, "wb") as f:
+                    f.write(img_data)
+
+                # Store the URL path for the frontend to use
+                user_message['attachment'] = f"/{filepath}" 
+            except Exception as e:
+                print(f"Error saving uploaded image: {e}")
+
+        ai_message = {"sender": "ai", "content": solution_text, "type": "text"}
+
+        save_message_to_history(session['username'], chat_id, user_message)
+        save_message_to_history(session['username'], chat_id, ai_message)
+
+        return jsonify({'solution': solution_text})
 
     except Exception as e:
         print(f"Error during chat: {e}")
-        error_html = f"<p>Could not process your request. The AI model failed to respond.</p>"
+        error_html = "<p>Could not process your request. The AI model failed to respond.</p>"
         return jsonify({'error': error_html}), 500
+#
+# =========================================================================================
+# === END OF CORRECTED SECTION ============================================================
+# =========================================================================================
+#
+
+# --- MODIFIED AND NEW ROUTES FOR CHAT HISTORY ---
+def get_user_history_key(username):
+    return f"history_{username}"
+
+def save_message_to_history(username, chat_id, message):
+    history_key = get_user_history_key(username)
+    user_history = json.loads(db.get(history_key, '{}'))
+
+    if chat_id not in user_history:
+        title = "Image Query" if 'attachment' in message and not message.get('content') else message.get('content', 'New Chat')[:30] + "..."
+        user_history[chat_id] = {
+            "title": title,
+            "created_at": time.time(),
+            "messages": []
+        }
+
+    user_history[chat_id]['messages'].append(message)
+    db[history_key] = json.dumps(user_history)
+
+@app.route('/history', methods=['GET'])
+def get_history():
+    if 'username' not in session:
+        return jsonify({'error': 'Authentication required.'}), 401
+
+    history_key = get_user_history_key(session['username'])
+    user_history = json.loads(db.get(history_key, '{}'))
+
+    grouped_chats = {}
+    today = datetime.now().date()
+
+    sorted_chats = sorted(user_history.items(), key=lambda item: item[1].get('created_at', 0), reverse=True)
+
+    for chat_id, data in sorted_chats:
+        chat_date = datetime.fromtimestamp(data.get('created_at', 0)).date()
+        delta = today - chat_date
+        if delta.days == 0:
+            group_name = "Today"
+        elif delta.days == 1:
+            group_name = "Yesterday"
+        else:
+            group_name = chat_date.strftime("%B %d, %Y")
+
+        if group_name not in grouped_chats:
+            grouped_chats[group_name] = []
+
+        grouped_chats[group_name].append({"id": chat_id, "title": data["title"]})
+
+    return jsonify(grouped_chats)
+
+@app.route('/chat/<chat_id>', methods=['GET'])
+def get_chat_messages(chat_id):
+    if 'username' not in session:
+        return jsonify({'error': 'Authentication required.'}), 401
+    history_key = get_user_history_key(session['username'])
+    user_history = json.loads(db.get(history_key, '{}'))
+    chat_data = user_history.get(chat_id)
+    if not chat_data:
+        return jsonify({"error": "Chat not found."}), 404
+    return jsonify(chat_data['messages'])
+
+@app.route('/chat/<chat_id>', methods=['DELETE'])
+def delete_chat(chat_id):
+    if 'username' not in session:
+        return jsonify({'error': 'Authentication required.'}), 401
+    history_key = get_user_history_key(session['username'])
+    user_history = json.loads(db.get(history_key, '{}'))
+    if chat_id in user_history:
+        del user_history[chat_id]
+        db[history_key] = json.dumps(user_history)
+        return jsonify({"success": True})
+    return jsonify({"error": "Chat not found."}), 404
+
+@app.route('/history/clear', methods=['POST'])
+def clear_history():
+    if 'username' not in session:
+        return jsonify({'error': 'Authentication required.'}), 401
+    history_key = get_user_history_key(session['username'])
+    db[history_key] = json.dumps({})
+    return jsonify({"success": True})
 
 
-# --- NEW ROUTES FOR SIGNUP, LOGIN, AND LOGOUT ---
+# --- ROUTES FOR SIGNUP, LOGIN, AND LOGOUT (Your code, unchanged) ---
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
-    """Handles user registration."""
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-
         if username in db.keys():
             flash("Username already exists! Please choose another.", "danger")
             return redirect(url_for('signup'))
-
         hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
         db[username] = hashed_password
-
         flash("Account created successfully! Please log in.", "success")
         return redirect(url_for('login'))
-
     return render_template('signup.html')
 
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Handles user login."""
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-
         if username in db.keys() and bcrypt.check_password_hash(db[username], password):
-            session['username'] = username # This line logs the user in
+            session['username'] = username
             return redirect(url_for('index'))
         else:
             flash("Invalid username or password.", "danger")
             return redirect(url_for('login'))
-
     return render_template('login.html')
 
 
 @app.route('/logout')
 def logout():
-    """Logs the user out."""
     session.pop('username', None)
     return redirect(url_for('login'))
-# ---------------------------------------------
 
 
 # --- Main Execution (Your code, unchanged) ---
