@@ -1,6 +1,6 @@
 Flask
-fla
-sk-corsflask-bcrypt
+flask-cors
+flask-bcrypt
 replit
 gunicorn
 requests
