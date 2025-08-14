@@ -44,7 +44,7 @@ GCP_PROJECT_ID = os.environ.get('GCP_PROJECT_ID')
 # New API Key for Stability AI
 STABILITY_API_KEY = os.environ.get('STABILITY_API_KEY')
 STABILITY_API_HOST = os.environ.get('STABILITY_API_HOST', 'https://api.stability.ai')
-STABILITY_ENGINE_ID = "stable-diffusion-xl-1024-v0-9" # Recommended for high quality. You can also try "stable-diffusion-v1-6"
+STABILITY_ENGINE_ID = "stable-diffusion-xl-1024-v1-0" # Updated to current available model
 
 # OpenAI API Key (for GPT-4o-mini chat fallback)
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
@@ -205,9 +205,8 @@ def generate_image():
                     }
                 ],
                 "cfg_scale": 7, # Classifier-free guidance scale
-                "clip_guidance_preset": "FAST_BLUE", # Recommended preset
-                "height": 1024, # Recommended for stable-diffusion-xl-1024-v0-9
-                "width": 1024,  # Recommended for stable-diffusion-xl-1024-v0-9
+                "height": 1024, # Standard size for SDXL
+                "width": 1024,  # Standard size for SDXL
                 "samples": 1, # Number of images to generate
                 "steps": 30, # Number of diffusion steps
             }
