@@ -176,15 +176,15 @@ def generate_image_prompt():
         return jsonify({'error': f"Failed to generate detailed prompt: {str(e)}"}), 500
 
 
-# --- Image Generation Route (NOW USES STABILITY AI) ---
+# --- Image Generation Route (NOW USES GEMINI API) ---
 @app.route('/generate', methods=['POST'])
 def generate_image():
     if 'username' not in session:
         return jsonify({'error': 'Authentication required.'}), 401
 
-    # Check if Stability AI API key is configured
-    if not STABILITY_API_KEY:
-        return jsonify({'error': 'Server is not configured for image generation (Stability AI API key missing).'}), 500
+    # Check if Gemini API key is configured
+    if not GEMINI_API_KEY:
+        return jsonify({'error': 'Server is not configured for image generation (Gemini API key missing).'}), 500
 
     # Handle both form data and JSON data (frontend should send JSON)
     if request.content_type and 'application/json' in request.content_type:
@@ -200,74 +200,45 @@ def generate_image():
         return jsonify({'error': 'Prompt is required.'}), 400
 
     try:
-        print(f"Generating image with Stability AI for prompt: '{prompt}'")
+        print(f"Generating image description with Gemini API for prompt: '{prompt}'")
 
-        # Make the request to Stability AI API
-        response = requests.post(
-            f"{STABILITY_API_HOST}/v1/generation/{STABILITY_ENGINE_ID}/text-to-image",
-            headers={
-                "Content-Type": "application/json",
-                "Accept": "application/json", # Request JSON response
-                "Authorization": f"Bearer {STABILITY_API_KEY}"
-            },
-            json={
-                "text_prompts": [
-                    {
-                        "text": prompt
-                    }
-                ],
-                "cfg_scale": 7, # Classifier-free guidance scale
-                "height": 1024, # Standard size for SDXL
-                "width": 1024,  # Standard size for SDXL
-                "samples": 1, # Number of images to generate
-                "steps": 30, # Number of diffusion steps
-            }
+        # Use Gemini to create a detailed image description
+        model = genai.GenerativeModel('gemini-1.5-pro-latest')
+
+        # Create a detailed prompt for image description
+        enhanced_prompt = (
+            f"Create a highly detailed, vivid description of an image based on this prompt: '{prompt}'. "
+            "Describe it as if you're looking at an actual photograph or artwork. Include details about "
+            "colors, lighting, composition, textures, mood, and atmosphere. Make it so descriptive that "
+            "someone could visualize the image perfectly. Write it as a single paragraph, maximum 200 words."
         )
 
-        response.raise_for_status() # Raise an HTTPError for bad responses (4xx or 5xx)
+        response = model.generate_content(enhanced_prompt)
+        image_description = response.text.strip()
 
-        response_data = response.json()
+        # Create a text file with the description instead of an actual image
+        description_filename = f"image_description_{uuid.uuid4()}.txt"
+        description_path = os.path.join(UPLOAD_FOLDER, description_filename)
 
-        if not response_data or not response_data.get('artifacts'):
-            raise Exception("Stability AI did not return any image artifacts.")
+        with open(description_path, "w", encoding='utf-8') as f:
+            f.write(f"Image Description for: '{prompt}'\n\n{image_description}")
 
-        # Stability AI returns base64 encoded images in 'artifacts'
-        image_base64 = response_data['artifacts'][0]['base64']
-
-        # Save the generated image from base64 to a file
-        image_filename = f"{uuid.uuid4()}.png"
-        image_path = os.path.join(UPLOAD_FOLDER, image_filename)
-
-        with open(image_path, "wb") as f:
-            f.write(base64.b64decode(image_base64))
-
-        # Create the public URL for the locally saved image
-        final_image_url = f"/{image_path}" # Relative URL for the browser
+        # Since we're not generating actual images, we'll provide the description as text response
+        final_description = f"Here's a detailed description of the image for '{prompt}':\n\n{image_description}"
 
         # Save the interaction to chat history
         user_message = {"sender": "user", "content": prompt, "type": "text"}
-        ai_message = {"sender": "ai", "content": f"Here is the image you requested for: '{prompt}'", "type": "image", "url": final_image_url}
+        ai_message = {"sender": "ai", "content": final_description, "type": "text"}
 
         save_message_to_history(session['username'], chat_id, user_message)
         save_message_to_history(session['username'], chat_id, ai_message)
 
-        # Return the URL of the generated image
-        return jsonify({'solution': ai_message['content'], 'image_url': final_image_url})
+        # Return the description instead of image URL
+        return jsonify({'solution': ai_message['content']})
 
-    except requests.exceptions.RequestException as e:
-        print(f"Stability AI Request Error in /generate: {e}")
-        error_detail = "Unknown request error."
-        if e.response is not None:
-            try:
-                error_json = e.response.json()
-                error_detail = error_json.get('message', error_json.get('errors', str(e)))
-            except json.JSONDecodeError:
-                error_detail = e.response.text # Fallback to raw text if not JSON
-        error_message = f"Sorry, the Stability AI model reported an API error: {error_detail}"
-        return jsonify({'error': error_message}), e.response.status_code if e.response is not None else 500
     except Exception as e:
-        print(f"General Error in /generate: {e}")
-        error_message = f"Sorry, I couldn't create the image. An unexpected error occurred: {str(e)}"
+        print(f"Gemini Image Description Error in /generate: {e}")
+        error_message = f"Sorry, I couldn't create the image description. An unexpected error occurred: {str(e)}"
         return jsonify({'error': error_message}), 500
 
 # --- Text Summarization Route ---
@@ -496,27 +467,27 @@ def search_history():
 def upload_avatar():
     if 'username' not in session:
         return jsonify({'error': 'Authentication required.'}), 401
-    
+
     if 'avatar' not in request.files:
         return jsonify({'error': 'No avatar file provided.'}), 400
-    
+
     file = request.files['avatar']
     if file.filename == '':
         return jsonify({'error': 'No file selected.'}), 400
-    
+
     # Validate file type
     allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
     file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
     if file_ext not in allowed_extensions:
         return jsonify({'error': 'Invalid file type. Please upload an image file.'}), 400
-    
+
     try:
         # Generate unique filename
         unique_filename = f"avatar_{session['username']}_{uuid.uuid4().hex}.{file_ext}"
-        
+
         # Read file data
         file_data = file.read()
-        
+
         # Try to save to Object Storage first, fallback to local storage
         avatar_url = None
         if object_storage_client:
@@ -527,7 +498,7 @@ def upload_avatar():
             except Exception as e:
                 print(f"Object Storage upload failed, falling back to local: {e}")
                 object_storage_client = None
-        
+
         if not avatar_url:
             # Fallback to local storage
             local_path = os.path.join(UPLOAD_FOLDER, unique_filename)
@@ -535,9 +506,9 @@ def upload_avatar():
                 f.write(file_data)
             avatar_url = f"/static/uploads/{unique_filename}"
             print(f"Avatar saved locally: {unique_filename}")
-        
+
         return jsonify({'avatar_url': avatar_url})
-        
+
     except Exception as e:
         print(f"Error uploading avatar: {e}")
         return jsonify({'error': 'Failed to upload avatar.'}), 500
@@ -547,16 +518,16 @@ def upload_avatar():
 def serve_avatar(filename):
     if not object_storage_client:
         return jsonify({'error': 'Object Storage not available.'}), 404
-    
+
     try:
         # Download from Object Storage
         temp_file = f"/tmp/{filename}"
         object_storage_client.download_to_filename(f"avatars/{filename}", temp_file)
-        
+
         # Serve the file
         from flask import send_file
         return send_file(temp_file, as_attachment=False)
-        
+
     except Exception as e:
         print(f"Error serving avatar from Object Storage: {e}")
         return jsonify({'error': 'Avatar not found.'}), 404
@@ -610,10 +581,10 @@ def signup():
         email = request.form['email']
         username = request.form['username']
         password = request.form['password']
-        
+
         user_key = get_user_key(username)
         email_key = get_email_key(email)
-        
+
         # Check if username or email already exists
         if db.get(user_key):
             flash("Username already exists! Please choose another.", "danger")
@@ -621,30 +592,30 @@ def signup():
         if db.get(email_key):
             flash("Email already registered! Please use a different email.", "danger")
             return redirect(url_for('signup'))
-            
+
         hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
-        
+
         # Store user data with both username and email mapping
         user_data = {
             'password': hashed_password,
             'email': email,
             'username': username
         }
-        
+
         # Store user data and email mapping
         try:
             db[user_key] = json.dumps(user_data)
             db[email_key] = username  # Map email to username for login lookup
-            
+
             # Verify the data was stored
             stored_user_data = db.get(user_key)
             stored_email_mapping = db.get(email_key)
-            
+
             print(f"Created user: {username} with email: {email}")
             print(f"User key: {user_key}, Email key: {email_key}")
             print(f"Stored user data: {stored_user_data is not None}")
             print(f"Stored email mapping: {stored_email_mapping}")
-            
+
             if not stored_user_data or not stored_email_mapping:
                 flash("Failed to create account. Please try again.", "danger")
                 return redirect(url_for('signup'))
@@ -652,7 +623,7 @@ def signup():
             print(f"Error storing user data: {e}")
             flash("Failed to create account. Please try again.", "danger")
             return redirect(url_for('signup'))
-        
+
         # Create a default profile for the new user
         profile_key = get_profile_key(username)
         default_profile = {
@@ -671,9 +642,9 @@ def login():
     if request.method == 'POST':
         login_input = request.form['email']  # This field now accepts both email and username
         password = request.form['password']
-        
+
         username = None
-        
+
         # Check if input contains @ symbol (likely email)
         if '@' in login_input:
             # Try to find username by email
@@ -685,53 +656,4 @@ def login():
         else:
             # Input is likely a username
             username = login_input
-            print(f"Login attempt with username: {login_input}")
-        
-        if not username:
-            flash("Email or username not found. Please check your credentials or sign up.", "danger")
-            return redirect(url_for('login'))
-            
-        user_key = get_user_key(username)
-        user_data_str = db.get(user_key)
-        
-        print(f"User key: {user_key}")
-        print(f"User data exists: {user_data_str is not None}")
-        
-        if user_data_str:
-            try:
-                # Try to parse as JSON first (new format)
-                user_data = json.loads(user_data_str)
-                if isinstance(user_data, dict):
-                    stored_password = user_data.get('password')
-                else:
-                    # If it's not a dict, treat as legacy format
-                    stored_password = user_data_str
-            except (json.JSONDecodeError, TypeError):
-                # Handle legacy format (just password string)
-                stored_password = user_data_str
-                
-            if stored_password and bcrypt.check_password_hash(stored_password, password):
-                session['username'] = username
-                return redirect(url_for('index'))
-        
-        flash("Invalid email/username or password.", "danger")
-        return redirect(url_for('login'))
-    return render_template('login.html')
-
-@app.route('/logout')
-def logout():
-    session.pop('username', None)
-    return redirect(url_for('login'))
-
-# --- Debug Route (Remove in production) ---
-@app.route('/debug/db/<key>')
-def debug_db(key):
-    if 'username' not in session:
-        return jsonify({'error': 'Authentication required.'}), 401
-    
-    value = db.get(key)
-    return jsonify({'key': key, 'value': value, 'exists': value is not None})
-
-# --- Main Execution ---
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)
+            print(f"Login attempt with username: {
