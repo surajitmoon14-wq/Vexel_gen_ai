@@ -120,6 +120,7 @@
         @keyframes typing-bounce {
             0%, 80%, 100% { transform: scale(0); }
             40% { transform: scale(1.0); }
+            100% { transform: scale(0); } /* Ensure it goes back to 0 */
         }
     </style>
 </head>
@@ -221,6 +222,22 @@
                                     aria-label="Generate image">
                                 Generate Image
                             </button>
+                        </div>
+
+                        <!-- NEW: Gemini Prompt Generation Input & Button -->
+                        <div class="mt-4 pt-4 border-t border-gray-700">
+                            <h3 class="text-lg font-semibold mb-3 text-gray-200">Or, Get a Detailed Prompt from Gemini</h3>
+                            <div class="flex flex-col md:flex-row gap-4">
+                                <input type="text" id="gemini-prompt-idea-input" placeholder="Enter a simple idea (e.g., 'fantasy forest')"
+                                       class="flex-grow p-3 border border-gray-600 rounded-md focus:ring-pink-500 focus:border-pink-500 shadow-sm text-white bg-gray-700"
+                                       aria-label="Simple idea for Gemini prompt generation">
+                                <button id="generate-gemini-prompt-button"
+                                        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-md shadow-md transition duration-300 ease-in-out transform hover:scale-105"
+                                        aria-label="Generate detailed prompt with Gemini">
+                                    Generate Prompt
+                                </button>
+                            </div>
+                            <p id="gemini-prompt-loading-text" class="text-center text-gray-400 mt-2 hidden">Generating prompt...</p>
                         </div>
 
                         <div id="image-result-container" class="mt-6 p-4 border border-gray-700 rounded-lg bg-gray-900 flex items-center justify-center min-h-[200px] relative overflow-hidden">
@@ -403,6 +420,12 @@
         const imageLoadingIndicator = getEl('image-loading-indicator');
         const inputBar = getEl('input-bar'); // Reference to the main input bar for chat
 
+        // NEW Gemini Prompt Generation Elements
+        const geminiPromptIdeaInput = getEl('gemini-prompt-idea-input');
+        const generateGeminiPromptButton = getEl('generate-gemini-prompt-button');
+        const geminiPromptLoadingText = getEl('gemini-prompt-loading-text');
+
+
         // Settings Modal Elements
         const settingsModal = getEl('settings-modal');
         const navSettingsBtn = getEl('nav-settings-btn');
@@ -511,9 +534,13 @@
                 recognition.onend = () => micBtn.classList.remove('is-recording');
             }
 
-            // NEW: Event Listener for Image Generation Button
+            // Event Listener for Image Generation Button
             if (generateImageButton) {
                 generateImageButton.addEventListener('click', handleGenerateImage);
+            }
+            // NEW: Event Listener for Gemini Prompt Generation Button
+            if (generateGeminiPromptButton) {
+                generateGeminiPromptButton.addEventListener('click', handleGenerateGeminiPrompt);
             }
         }
 
@@ -988,10 +1015,12 @@
                 generatedImage.classList.add('hidden');
                 imagePlaceholderText.textContent = 'Your generated image will appear here.';
                 imagePlaceholderText.classList.remove('hidden');
-                imagePromptInput.value = ''; // Clear image prompt input
+                imagePromptInput.value = ''; // Clear DALL-E prompt input
+                geminiPromptIdeaInput.value = ''; // Clear Gemini prompt idea input
+                geminiPromptLoadingText.classList.add('hidden'); // Hide Gemini prompt loading text
 
                 // Initial message for image generation mode
-                chatContainer.innerHTML = `<div class="text-center p-8 flex-grow flex flex-col justify-center items-center"><div><h1 class="text-5xl font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">Image Generation</h1><p class="text-gray-400 mt-2">Describe the image you want to create above.</p></div></div>`;
+                chatContainer.innerHTML = `<div class="text-center p-8 flex-grow flex flex-col justify-center items-center"><div><h1 class="text-5xl font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">Image Generation</h1><p class="text-gray-400 mt-2">Describe the image you want to create above, or use Gemini to help generate a detailed prompt.</p></div></div>`;
             }
             clearAttachment();
             document.querySelectorAll('.sidebar-link, .chat-history-item').forEach(el => el.classList.remove('active'));
@@ -999,7 +1028,7 @@
         }
 
         function addMessageToChat(message) {
-            const { content, sender, type, attachment } = message;
+            const { content, sender, type, attachment, url } = message; // Added 'url' for image messages
             if(isFirstMessageInSession && sender === 'user'){
                 // Remove initial welcome/system message when user sends first real message
                 const initialMessage = chatContainer.querySelector('.text-center, .text-xs.italic');
@@ -1026,7 +1055,7 @@
             if (sender === 'ai' && type === 'loader') {
                  htmlContent += `<div class="ai-bubble-header"><span class="sender-name">Vexel AI</span></div><div class="flex items-center gap-2 text-sm text-gray-400"><span>Vexel AI is typing...</span><div class="typing-indicator"><span></span><span></span><span></span></div></div>`;
             } else if (type === 'image') {
-                // NEW: Handle AI-generated images
+                // Handle AI-generated images (content is the URL)
                 htmlContent += `<div class="ai-bubble-header"><span class="sender-name">Vexel AI</span></div>`;
                 htmlContent += `<img src="${content}" class="rounded-lg w-full max-w-md mt-2">`; // 'content' here is the image_url
             } else {
@@ -1047,7 +1076,7 @@
             return bubbleWrapper;
         }
 
-        // NEW: Function to handle Image Generation request
+        // Function to handle Image Generation request (DALL-E)
         async function handleGenerateImage() {
             const prompt = imagePromptInput.value.trim();
             if (!prompt) {
@@ -1082,6 +1111,7 @@
                         generatedImage.src = data.image_url;
                         generatedImage.classList.remove('hidden');
                         imagePromptInput.value = ''; // Clear the input field
+                        geminiPromptIdeaInput.value = ''; // Clear Gemini prompt idea input
 
                         // Add AI's response (image) to chat history
                         addMessageToChat({ content: data.image_url, sender: 'ai', type: 'image' });
@@ -1110,6 +1140,54 @@
                 imageResultContainer.classList.remove('animate-pulse');
             }
         }
+
+        // NEW: Function to handle Gemini Prompt Generation request
+        async function handleGenerateGeminiPrompt() {
+            const idea = geminiPromptIdeaInput.value.trim();
+            if (!idea) {
+                showNotification('Please enter a simple idea for the prompt.', 'error');
+                return;
+            }
+
+            geminiPromptLoadingText.classList.remove('hidden'); // Show loading text
+            generateGeminiPromptButton.disabled = true; // Disable button
+            geminiPromptIdeaInput.disabled = true; // Disable input
+
+            try {
+                const response = await fetch('/generate_image_prompt', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ idea: idea })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    if (data.detailed_prompt) {
+                        imagePromptInput.value = data.detailed_prompt; // Populate the DALL-E prompt input
+                        showNotification('Detailed prompt generated by Gemini!', 'success');
+                        geminiPromptIdeaInput.value = ''; // Clear idea input
+                        // Add this interaction to chat history
+                        addMessageToChat({ content: `Idea for prompt: "${idea}"`, sender: 'user', type: 'text' });
+                        addMessageToChat({ content: `Gemini generated prompt: "${data.detailed_prompt}"`, sender: 'ai', type: 'text' });
+                    } else {
+                        showNotification('Gemini failed to generate a detailed prompt.', 'error');
+                    }
+                } else {
+                    const errorMessage = data.error || 'Unknown error occurred during prompt generation.';
+                    showNotification(`Prompt generation error: ${errorMessage}`, 'error');
+                }
+            } catch (error) {
+                showNotification(`Network error during prompt generation: ${error.message}`, 'error');
+            } finally {
+                geminiPromptLoadingText.classList.add('hidden'); // Hide loading text
+                generateGeminiPromptButton.disabled = false; // Enable button
+                geminiPromptIdeaInput.disabled = false; // Enable input
+            }
+        }
+
 
         // ... (rest of the functions: handleFileAttachment, showAttachmentPreview, etc.)
         function handleFileAttachment(event) {

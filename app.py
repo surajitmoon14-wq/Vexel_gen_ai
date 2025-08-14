@@ -43,26 +43,26 @@ GCP_PROJECT_ID = os.environ.get('GCP_PROJECT_ID')
 # GCP_SERVICE_ACCOUNT_KEY is no longer needed for DALL-E
 # GCP_SERVICE_ACCOUNT_KEY = os.environ.get('GCP_SERVICE_ACCOUNT_KEY')
 
-# New API Key for DALL-E
+# New API Key for DALL-E and now also for GPT-4o-mini chat
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 
-# --- Initialize Gemini (for chat/summarize) ---
+# --- Initialize Gemini (for chat/summarize and now prompt generation) ---
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
     print("Gemini API configured successfully.")
 else:
-    print("WARNING: GEMINI_API_KEY not set. Text-based AI features will not work.")
+    print("WARNING: GEMINI_API_KEY not set. Text-based AI features will not work (will try OpenAI for chat).")
 
-# --- Initialize DALL-E (replacing Vertex AI Imagen) ---
-dalle_client = None
+# --- Initialize DALL-E and OpenAI Chat Client ---
+dalle_client = None # This client instance will be used for both DALL-E and OpenAI chat models
 if OPENAI_API_KEY:
     try:
         dalle_client = openai.OpenAI(api_key=OPENAI_API_KEY)
-        print("OpenAI DALL-E client configured successfully.")
+        print("OpenAI DALL-E and Chat client configured successfully.")
     except Exception as e:
-        print(f"WARNING: Failed to initialize OpenAI DALL-E client. Image generation will not work. Error: {e}")
+        print(f"WARNING: Failed to initialize OpenAI client. Image generation and OpenAI chat will not work. Error: {e}")
 else:
-    print("WARNING: OPENAI_API_KEY not set. Image generation will not work.")
+    print("WARNING: OPENAI_API_KEY not set. Image generation and OpenAI chat will not work.")
 
 
 # This dictionary is no longer used for emotion responses but is kept for other potential uses.
@@ -121,8 +121,43 @@ def index():
         font_style=font_style
     )
 
+# --- NEW: Image Prompt Generation Route (USES GEMINI) ---
+@app.route('/generate_image_prompt', methods=['POST'])
+def generate_image_prompt():
+    if 'username' not in session:
+        return jsonify({'error': 'Authentication required.'}), 401
+    if not GEMINI_API_KEY:
+        return jsonify({'error': 'Gemini API key is not configured for prompt generation.'}), 500
 
-# --- Image Generation Route (NOW USES DALL-E) ---
+    data = request.get_json()
+    user_idea = data.get('idea')
+    if not user_idea:
+        return jsonify({'error': 'An idea for the image prompt is required.'}), 400
+
+    try:
+        print(f"Generating detailed image prompt with Gemini for idea: '{user_idea}'")
+        model = genai.GenerativeModel('gemini-1.5-pro-latest')
+
+        system_instruction = (
+            "You are an expert prompt engineer for AI image generation models like DALL-E. "
+            "Your task is to take a simple idea and expand it into a highly detailed, creative, "
+            "and vivid prompt (max 150 words) that will produce an amazing image. "
+            "Include details about style, lighting, composition, colors, and mood. "
+            "Do NOT include any conversational text, just the prompt itself."
+        )
+        prompt_text = f"Generate a detailed image prompt based on this idea: '{user_idea}'"
+
+        response = model.generate_content([system_instruction, prompt_text])
+        generated_prompt = response.text.strip()
+
+        return jsonify({'detailed_prompt': generated_prompt})
+
+    except Exception as e:
+        print(f"Error during Gemini image prompt generation: {e}")
+        return jsonify({'error': f"Failed to generate detailed prompt: {str(e)}"}), 500
+
+
+# --- Image Generation Route (USES DALL-E) ---
 @app.route('/generate', methods=['POST'])
 def generate_image():
     if 'username' not in session:
@@ -130,7 +165,7 @@ def generate_image():
 
     # Check if DALL-E client is initialized
     if not dalle_client:
-        return jsonify({'error': 'Server is not configured for image generation (DALL-E client not initialized).'}), 500
+        return jsonify({'error': 'Server is not configured for image generation (OpenAI client not initialized).'}), 500
 
     # Handle both form data and JSON data (frontend should send JSON)
     if request.content_type and 'application/json' in request.content_type:
@@ -184,7 +219,8 @@ def generate_image():
 
     except openai.APIError as e:
         print(f"OpenAI API Error in /generate: {e}")
-        error_message = f"Sorry, the DALL-E model reported an API error: {str(e)}"
+        # Improved error message extraction for OpenAI APIError
+        error_message = f"Sorry, the DALL-E model reported an API error: {e.response.json().get('error', {}).get('message', str(e))}"
         return jsonify({'error': error_message}), 500
     except Exception as e:
         print(f"General Error in /generate: {e}")
@@ -197,7 +233,7 @@ def summarize_text():
     if 'username' not in session:
         return jsonify({'error': 'Authentication required.'}), 401
     if not GEMINI_API_KEY:
-        return jsonify({'error': 'Server is not configured for summarization.'}), 500
+        return jsonify({'error': 'Server is not configured for summarization (Gemini API key missing).'}), 500 # Added more specific error
     text_to_summarize = request.get_json().get('text')
     if not text_to_summarize:
         return jsonify({'error': 'Text to summarize is required.'}), 400
@@ -210,24 +246,17 @@ def summarize_text():
         print(f"Error during summarization: {e}")
         return jsonify({'error': "Failed to summarize the text."}), 500
 
-# --- Main Chat Route (With Emotion Detector Logic) ---
+# --- Main Chat Route (With Emotion Detector Logic - Now supports Gemini or OpenAI fallback) ---
 @app.route('/chat', methods=['POST'])
 def handle_chat():
     if 'username' not in session:
         return jsonify({'error': 'Authentication required.'}), 401
-    if not GEMINI_API_KEY:
-        return jsonify({'error': 'Server is not configured for chat.'}), 500
 
     data = request.get_json()
     user_prompt = data.get('prompt', '')
     emotion = data.get('emotion', 'neutral')
-
-    # The previous logic here was blocking emotion prompts from reaching the AI.
-    # It has been replaced with a dynamic system instruction below to handle it correctly.
-
-    # Standard chat logic
     tone = data.get('tone', 'default')
-    file_content = data.get('file_content', None)
+    file_content = data.get('file_content', None) # Base64 encoded file content
     chat_id = data.get('chat_id')
 
     if not user_prompt and not file_content:
@@ -239,38 +268,75 @@ def handle_chat():
         'default': "You are Vexel AI, a helpful assistant."
     }
 
-    # Set the system instruction based on the context (emotion detection or regular chat)
+    # Determine system instruction based on emotion or general tone
     if user_prompt.startswith("(System: The user's expression just changed to"):
-        system_instruction = "You are Vexel AI. You can see the user via their webcam. Briefly and naturally comment on the emotion they are showing, which is mentioned in the user's prompt. For example, if the prompt says they are happy, you could say 'I see you're smiling!' or 'You look happy right now!'"
+        system_instruction_text = "You are Vexel AI. You can see the user via their webcam. Briefly and naturally comment on the emotion they are showing, which is mentioned in the user's prompt. For example, if the prompt says they are happy, you could say 'I see you're smiling!' or 'You look happy right now!'"
     else:
-        system_instruction = system_prompts.get(tone, system_prompts['default'])
+        system_instruction_text = system_prompts.get(tone, system_prompts['default'])
 
-    model_contents = []
-    if file_content:
-        # Handle file content (unchanged)
-        try:
-            header, encoded_data = file_content.split(",", 1)
-            mime_type = header.split(":")[1].split(";")[0]
-            if mime_type.startswith("image/"):
-                model_contents.append(user_prompt)
-                model_contents.append({"mime_type": mime_type, "data": encoded_data})
-            else:
-                text_content = base64.b64decode(encoded_data).decode('utf-8')
-                model_contents.append(f"File content:\n{text_content}\n\nUser prompt: {user_prompt}")
-        except Exception:
-            model_contents.append(f"Text content: {file_content}\n\nUser prompt: {user_prompt}")
-    else:
-        model_contents.append(user_prompt)
-
+    solution_text = ""
     try:
-        model = genai.GenerativeModel('gemini-1.5-pro-latest', system_instruction=system_instruction)
-        response = model.generate_content(model_contents)
-        solution_text = response.text
+        if GEMINI_API_KEY:
+            # --- Use Gemini for chat if GEMINI_API_KEY is available ---
+            print("Using Gemini for chat.")
+            model_contents = []
+            if file_content:
+                try:
+                    header, encoded_data = file_content.split(",", 1)
+                    mime_type = header.split(":")[1].split(";")[0]
+                    if mime_type.startswith("image/"):
+                        model_contents.append({"mime_type": mime_type, "data": encoded_data})
+                        model_contents.append(user_prompt) # Text part after image
+                    else:
+                        text_content = base64.b64decode(encoded_data).decode('utf-8')
+                        model_contents.append(f"File content:\n{text_content}\n\nUser prompt: {user_prompt}")
+                except Exception:
+                    model_contents.append(f"Text content: {file_content}\n\nUser prompt: {user_prompt}")
+            else:
+                model_contents.append(user_prompt)
+
+            model = genai.GenerativeModel('gemini-1.5-pro-latest', system_instruction=system_instruction_text)
+            response = model.generate_content(model_contents)
+            solution_text = response.text
+
+        elif OPENAI_API_KEY and dalle_client:
+            # --- Fallback to OpenAI GPT-4o-mini for chat if Gemini is not configured ---
+            print("Using OpenAI GPT-4o-mini for chat.")
+            messages = [{"role": "system", "content": system_instruction_text}]
+
+            # Handle file content for OpenAI GPT-4o-mini:
+            # GPT-4o-mini is primarily text-based. If an image is attached,
+            # we'll add a note about it, but the model won't process the image itself.
+            # For text files, content is appended.
+            if file_content:
+                try:
+                    header, encoded_data = file_content.split(",", 1)
+                    mime_type = header.split(":")[1].split(";")[0]
+                    if mime_type.startswith("image/"):
+                        # GPT-4o-mini does not support image input directly in chat completions.
+                        # We'll just add a note about the image for context.
+                        messages.append({"role": "user", "content": f"{user_prompt}\n\n(Note: An image was attached but is not processed by this text-only model.)"})
+                    else:
+                        text_content = base64.b64decode(encoded_data).decode('utf-8')
+                        messages.append({"role": "user", "content": f"File content:\n{text_content}\n\nUser prompt: {user_prompt}"})
+                except Exception:
+                    messages.append({"role": "user", "content": f"Text content: {file_content}\n\nUser prompt: {user_prompt}"})
+            else:
+                messages.append({"role": "user", "content": user_prompt})
+
+            openai_response = dalle_client.chat.completions.create(
+                model="gpt-4o-mini", # Using the text model specified by the user
+                messages=messages
+            )
+            solution_text = openai_response.choices[0].message.content
+
+        else:
+            return jsonify({'error': 'Server is not configured for chat (neither Gemini nor OpenAI API key found).'}), 500
 
         # Do not save the automatic emotion-triggered messages to history to keep the log clean.
         if not user_prompt.startswith("(System:"):
             user_message = {"sender": "user", "content": user_prompt, "type": "text"}
-            if file_content and 'mime_type' in locals() and mime_type.startswith("image/"):
+            if file_content: # Save attachment info for user message if present
                 user_message['attachment'] = file_content 
 
             ai_message = {"sender": "ai", "content": solution_text, "type": "text"}
@@ -279,9 +345,15 @@ def handle_chat():
             save_message_to_history(session['username'], chat_id, ai_message)
 
         return jsonify({'solution': solution_text})
+    except openai.APIError as e:
+        print(f"OpenAI Chat API Error: {e}")
+        # Improved error message extraction for OpenAI APIError
+        error_message = f"Sorry, the OpenAI chat model reported an API error: {e.response.json().get('error', {}).get('message', str(e))}"
+        return jsonify({'error': error_message}), 500
     except Exception as e:
         print(f"Error during chat: {e}")
-        return jsonify({'error': "The AI model failed to respond."}), 500
+        error_message = f"The AI model failed to respond: {str(e)}"
+        return jsonify({'error': error_message}), 500
 
 # --- Chat History Management Functions ---
 def save_message_to_history(username, chat_id, message):
