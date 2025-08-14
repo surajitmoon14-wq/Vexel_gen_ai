@@ -147,14 +147,14 @@
                     <input type="search" id="history-search-input" placeholder="Search history..." class="w-full px-2 py-1.5 bg-gray-600 border border-gray-500 rounded-md text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-pink-500">
                 </div>
                 <div id="chat-history-list" class="mt-2 space-y-1">
-                    </div>
+                </div>
             </div>
         </nav>
         <div class="p-2 border-t border-gray-700">
              <a href="#" id="nav-settings-btn" class="sidebar-link">
-                <svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                Customize
-            </a>
+                 <svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                 Customize
+             </a>
         </div>
     </aside>
 
@@ -177,7 +177,7 @@
                 </div>
             </div>
              <div id="user-profile-header" class="flex items-center space-x-3 text-white">
-                </div>
+             </div>
             <div class="flex items-center space-x-2">
                 <button id="export-chat-btn" class="p-2 rounded-full text-blue-400 hover:bg-gray-700" title="Export Conversation">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
@@ -207,6 +207,37 @@
 
             <div id="chat-view" class="page-content flex-grow overflow-y-hidden flex flex-col chat-wrapper">
                 <div id="chat-container" class="flex-grow overflow-y-auto pr-2"></div>
+
+                <!-- NEW: Image Generation Section -->
+                <div id="image-generation-section" class="mt-4 flex-shrink-0 hidden">
+                    <div class="p-4 bg-gray-800 rounded-lg shadow-md mb-6">
+                        <h2 class="text-xl font-semibold mb-4 text-gray-200">Generate an Image</h2>
+                        <div class="flex flex-col md:flex-row gap-4">
+                            <input type="text" id="image-prompt-input" placeholder="Describe the image you want to create (e.g., 'a cat flying in space')"
+                                   class="flex-grow p-3 border border-gray-600 rounded-md focus:ring-pink-500 focus:border-pink-500 shadow-sm text-white bg-gray-700"
+                                   aria-label="Image generation prompt input">
+                            <button id="generate-image-button"
+                                    class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-md shadow-md transition duration-300 ease-in-out transform hover:scale-105"
+                                    aria-label="Generate image">
+                                Generate Image
+                            </button>
+                        </div>
+
+                        <div id="image-result-container" class="mt-6 p-4 border border-gray-700 rounded-lg bg-gray-900 flex items-center justify-center min-h-[200px] relative overflow-hidden">
+                            <p id="image-placeholder-text" class="text-gray-400">Your generated image will appear here.</p>
+                            <img id="generated-image" class="hidden max-w-full h-auto rounded-lg shadow-lg" alt="Generated Image">
+                            <div id="image-loading-indicator" class="hidden absolute inset-0 bg-gray-900 bg-opacity-80 flex items-center justify-center text-purple-400 text-lg font-medium">
+                                Generating image...
+                                <svg class="animate-spin ml-3 h-5 w-5 text-purple-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Existing Chat Input Bar (now conditionally hidden for image mode) -->
                 <div id="input-bar" class="mt-4 flex-shrink-0">
                     <div id="file-attachment-preview" class="mb-2"></div>
                     <form id="prompt-form" class="relative">
@@ -271,12 +302,12 @@
                              <input type="range" id="font-size-slider" min="12" max="20" step="1" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
                          </div>
                          <div>
-                            <label class="block mb-3 font-medium text-sm">Theme</label>
-                            <div id="theme-btn-group" class="grid grid-cols-2 gap-2">
-                                <button class="tone-btn" data-theme="dark">Dark Mode</button>
-                                <button class="tone-btn" data-theme="light">Light Mode</button>
-                            </div>
-                        </div>
+                             <label class="block mb-3 font-medium text-sm">Theme</label>
+                             <div id="theme-btn-group" class="grid grid-cols-2 gap-2">
+                                 <button class="tone-btn" data-theme="dark">Dark Mode</button>
+                                 <button class="tone-btn" data-theme="light">Light Mode</button>
+                             </div>
+                         </div>
                      </div>
                 </div>
 
@@ -304,27 +335,27 @@
                              <input type="color" id="sidebar-input-color" class="w-full h-10 p-1 bg-gray-700 rounded-lg cursor-pointer">
                          </div>
                          <div class="col-span-2">
-                            <label class="block mb-2 font-medium text-sm">Background Gradient</label>
-                            <div class="grid grid-cols-4 gap-2">
-                                <input type="color" id="bg-color-1" class="w-full h-10 p-1 bg-gray-700 rounded-lg cursor-pointer">
-                                <input type="color" id="bg-color-2" class="w-full h-10 p-1 bg-gray-700 rounded-lg cursor-pointer">
-                                <input type="color" id="bg-color-3" class="w-full h-10 p-1 bg-gray-700 rounded-lg cursor-pointer">
-                                <input type="color" id="bg-color-4" class="w-full h-10 p-1 bg-gray-700 rounded-lg cursor-pointer">
-                            </div>
-                        </div>
+                             <label class="block mb-2 font-medium text-sm">Background Gradient</label>
+                             <div class="grid grid-cols-4 gap-2">
+                                 <input type="color" id="bg-color-1" class="w-full h-10 p-1 bg-gray-700 rounded-lg cursor-pointer">
+                                 <input type="color" id="bg-color-2" class="w-full h-10 p-1 bg-gray-700 rounded-lg cursor-pointer">
+                                 <input type="color" id="bg-color-3" class="w-full h-10 p-1 bg-gray-700 rounded-lg cursor-pointer">
+                                 <input type="color" id="bg-color-4" class="w-full h-10 p-1 bg-gray-700 rounded-lg cursor-pointer">
+                             </div>
+                         </div>
                      </div>
                 </div>
             </div>
              <div class="mt-8 flex justify-end gap-4">
-                <button id="reset-settings-btn" class="px-6 py-2 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-500 transition-colors">Reset</button>
-                <button id="save-settings-btn" class="px-6 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition-colors">Save & Close</button>
-            </div>
+                 <button id="reset-settings-btn" class="px-6 py-2 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-500 transition-colors">Reset</button>
+                 <button id="save-settings-btn" class="px-6 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition-colors">Save & Close</button>
+             </div>
         </div>
     </div>
 
     <script type="module">
         // --- State Management ---
-        let currentModel = 'image';
+        let currentModel = 'image'; // Default to image mode as per the initial selected model name
         let attachedFileContent = null;
         let attachedFileName = null;
         let isFirstMessageInSession = true;
@@ -361,6 +392,16 @@
         const micBtn = getEl('mic-btn');
         const clearHistoryBtn = getEl('clear-history-btn');
         const exportChatBtn = getEl('export-chat-btn');
+
+        // NEW Image Generation Elements
+        const imageGenerationSection = getEl('image-generation-section');
+        const imagePromptInput = getEl('image-prompt-input');
+        const generateImageButton = getEl('generate-image-button');
+        const generatedImage = getEl('generated-image');
+        const imageResultContainer = getEl('image-result-container');
+        const imagePlaceholderText = getEl('image-placeholder-text');
+        const imageLoadingIndicator = getEl('image-loading-indicator');
+        const inputBar = getEl('input-bar'); // Reference to the main input bar for chat
 
         // Settings Modal Elements
         const settingsModal = getEl('settings-modal');
@@ -445,7 +486,7 @@
             modelSelectorBtn.addEventListener('click', toggleModelDropdown);
             modelOptions.forEach(option => option.addEventListener('click', handleModelSwitch));
             navNewChatBtn.addEventListener('click', handleNewChatClick);
-            promptForm.addEventListener('submit', handleFormSubmit);
+            promptForm.addEventListener('submit', handleFormSubmit); // This is now ONLY for chat
             promptInput.addEventListener('input', autoResizeTextarea);
             promptInput.addEventListener('keydown', handleEnterKey);
             fileInput.addEventListener('change', handleFileAttachment);
@@ -468,6 +509,11 @@
                 micBtn.addEventListener('click', toggleVoiceRecognition);
                 recognition.onresult = handleVoiceResult;
                 recognition.onend = () => micBtn.classList.remove('is-recording');
+            }
+
+            // NEW: Event Listener for Image Generation Button
+            if (generateImageButton) {
+                generateImageButton.addEventListener('click', handleGenerateImage);
             }
         }
 
@@ -546,7 +592,6 @@
             if (!chatItem) return;
             const chatId = chatItem.dataset.chatId;
             if (e.target.closest('.delete-chat-btn')) {
-                // MODIFIED: Removed confirm() popup for a smoother experience
                 try {
                     const response = await fetch(`/chat/${chatId}`, { method: 'DELETE' });
                     if (!response.ok) throw new Error('Failed to delete chat.');
@@ -581,7 +626,6 @@
         }
 
         async function handleClearHistory() {
-            // MODIFIED: Removed confirm() popup for a smoother experience
             try {
                 const response = await fetch('/history/clear', { method: 'POST' });
                 if (!response.ok) throw new Error('Failed to clear history.');
@@ -894,22 +938,33 @@
 
         function updateViewForModel() {
             const isEmotion = currentModel === 'emotion';
+            const isImage = currentModel === 'image';
+
             mainElement.classList.toggle('emotion-active-layout', isEmotion);
 
             if (isEmotion) {
                 emotionView.classList.remove('hidden');
                 chatView.classList.remove('hidden'); // Show both
                 cameraControls.classList.remove('hidden');
-                fileInputLabel.style.display = 'none';
-                startNewChat(); // Start a fresh chat for the emotion session
-            } else {
+                inputBar.classList.remove('hidden'); // Keep chat input visible for emotion comments
+                imageGenerationSection.classList.add('hidden'); // Hide image section
+            } else if (isImage) {
                 stopWebcam(); // Always stop webcam when leaving emotion mode
+                emotionView.classList.add('hidden');
+                chatView.classList.remove('hidden'); // Keep chat view, but change its content
+                cameraControls.classList.add('hidden');
+                inputBar.classList.add('hidden'); // Hide chat input bar
+                imageGenerationSection.classList.remove('hidden'); // Show image generation section
+            } else { // 'chat' model
+                stopWebcam();
                 emotionView.classList.add('hidden');
                 chatView.classList.remove('hidden');
                 cameraControls.classList.add('hidden');
-                fileInputLabel.style.display = currentModel === 'chat' ? 'block' : 'none';
-                startNewChat(); // Start a fresh chat for the new model
+                inputBar.classList.remove('hidden'); // Show chat input bar
+                imageGenerationSection.classList.add('hidden'); // Hide image section
             }
+            fileInputLabel.style.display = (currentModel === 'chat' || currentModel === 'emotion') ? 'block' : 'none'; // Only allow file input for chat/emotion
+            startNewChat(); // Start a fresh chat for the new model
         }
 
         function handleNewChatClick(e) {
@@ -928,7 +983,15 @@
             } else if (currentModel === 'emotion') {
                 addMessageToChat({ content: "Emotion AI activated. Start your camera to begin. The AI will comment on detected emotions.", sender: 'system' });
             } else if (currentModel === 'image') {
-                chatContainer.innerHTML = `<div class="text-center p-8 flex-grow flex flex-col justify-center items-center"><div><h1 class="text-5xl font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">Image Generation</h1><p class="text-gray-400 mt-2">Describe the image you want to create.</p></div></div>`;
+                // Clear any previous image and reset placeholder
+                generatedImage.src = '';
+                generatedImage.classList.add('hidden');
+                imagePlaceholderText.textContent = 'Your generated image will appear here.';
+                imagePlaceholderText.classList.remove('hidden');
+                imagePromptInput.value = ''; // Clear image prompt input
+
+                // Initial message for image generation mode
+                chatContainer.innerHTML = `<div class="text-center p-8 flex-grow flex flex-col justify-center items-center"><div><h1 class="text-5xl font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">Image Generation</h1><p class="text-gray-400 mt-2">Describe the image you want to create above.</p></div></div>`;
             }
             clearAttachment();
             document.querySelectorAll('.sidebar-link, .chat-history-item').forEach(el => el.classList.remove('active'));
@@ -938,6 +1001,7 @@
         function addMessageToChat(message) {
             const { content, sender, type, attachment } = message;
             if(isFirstMessageInSession && sender === 'user'){
+                // Remove initial welcome/system message when user sends first real message
                 const initialMessage = chatContainer.querySelector('.text-center, .text-xs.italic');
                 if (initialMessage) initialMessage.parentElement.remove();
             }
@@ -955,13 +1019,16 @@
             let htmlContent = '';
 
             if (attachment) {
+                // For user messages with attachments (e.g., images for chat)
                 htmlContent += `<img src="${attachment}" class="rounded-lg w-full max-w-xs mb-2">`;
             }
 
             if (sender === 'ai' && type === 'loader') {
                  htmlContent += `<div class="ai-bubble-header"><span class="sender-name">Vexel AI</span></div><div class="flex items-center gap-2 text-sm text-gray-400"><span>Vexel AI is typing...</span><div class="typing-indicator"><span></span><span></span><span></span></div></div>`;
             } else if (type === 'image') {
-                htmlContent += `<img src="${content}" class="rounded-lg w-full max-w-md">`;
+                // NEW: Handle AI-generated images
+                htmlContent += `<div class="ai-bubble-header"><span class="sender-name">Vexel AI</span></div>`;
+                htmlContent += `<img src="${content}" class="rounded-lg w-full max-w-md mt-2">`; // 'content' here is the image_url
             } else {
                 if (sender === 'ai' && type === 'text') {
                     const headerHTML = `<div class="ai-bubble-header"><span class="sender-name">Vexel AI</span><button class="tts-btn" title="Read aloud"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.858 15.858a5 5 0 01-2.828-7.072m9.9 9.9A9 9 0 013 12"></path></svg></button></div>`;
@@ -980,8 +1047,72 @@
             return bubbleWrapper;
         }
 
+        // NEW: Function to handle Image Generation request
+        async function handleGenerateImage() {
+            const prompt = imagePromptInput.value.trim();
+            if (!prompt) {
+                showNotification('Please enter a description for the image.', 'error');
+                return;
+            }
+
+            // Show loading indicator
+            imagePlaceholderText.classList.add('hidden');
+            generatedImage.classList.add('hidden');
+            imageLoadingIndicator.classList.remove('hidden');
+            imageResultContainer.classList.add('animate-pulse'); // Add a subtle pulse animation
+
+            // Add user's image prompt to chat history (as a user message)
+            addMessageToChat({ content: `Generate image: "${prompt}"`, sender: 'user', type: 'text' });
+
+            try {
+                const formData = new FormData();
+                formData.append('prompt', prompt);
+                formData.append('chat_id', currentChatId); // Use the current chat ID
+
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    body: formData // No Content-Type header needed for FormData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Image generated successfully, display it
+                    if (data.image_url) {
+                        generatedImage.src = data.image_url;
+                        generatedImage.classList.remove('hidden');
+                        imagePromptInput.value = ''; // Clear the input field
+
+                        // Add AI's response (image) to chat history
+                        addMessageToChat({ content: data.image_url, sender: 'ai', type: 'image' });
+                    } else {
+                        imagePlaceholderText.textContent = 'Error: Image URL not found in response.';
+                        imagePlaceholderText.classList.remove('hidden');
+                        showNotification('Image generation failed: No image URL.', 'error');
+                    }
+                } else {
+                    // Handle errors from the server (e.g., 400, 401, 500)
+                    const errorMessage = data.error || 'Unknown error occurred.';
+                    imagePlaceholderText.textContent = `Error: ${errorMessage}`;
+                    imagePlaceholderText.classList.remove('hidden');
+                    addMessageToChat({ content: `Error generating image: ${errorMessage}`, sender: 'ai', type: 'text' });
+                    showNotification(`Image generation failed: ${errorMessage}`, 'error');
+                }
+            } catch (error) {
+                // Handle network or other client-side errors
+                imagePlaceholderText.textContent = `An unexpected error occurred: ${error.message}`;
+                imagePlaceholderText.classList.remove('hidden');
+                addMessageToChat({ content: `Network error generating image: ${error.message}`, sender: 'ai', type: 'text' });
+                showNotification(`An unexpected error occurred: ${error.message}`, 'error');
+            } finally {
+                // Hide loading indicator and remove animation
+                imageLoadingIndicator.classList.add('hidden');
+                imageResultContainer.classList.remove('animate-pulse');
+            }
+        }
+
         // ... (rest of the functions: handleFileAttachment, showAttachmentPreview, etc.)
-         function handleFileAttachment(event) {
+        function handleFileAttachment(event) {
             const file = event.target.files[0];
             if (!file) return;
             const reader = new FileReader();
@@ -1034,11 +1165,22 @@
         function handleEnterKey(e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                promptForm.requestSubmit();
+                // This now only triggers for the main prompt-form (chat/emotion)
+                if (currentModel === 'chat' || currentModel === 'emotion') {
+                    promptForm.requestSubmit();
+                }
             }
         }
         async function handleFormSubmit(e) {
             e.preventDefault();
+            // This function is now EXCLUSIVELY for 'chat' and 'emotion' models
+            if (currentModel === 'image') {
+                // This case should ideally not be reached if UI is correctly set up
+                // The image generation button (handleGenerateImage) should be used instead
+                console.warn("Attempted to submit prompt-form in 'image' mode. Use 'Generate Image' button instead.");
+                return;
+            }
+
             const prompt = promptInput.value.trim();
             if (!prompt && !attachedFileContent) return;
 
@@ -1051,40 +1193,28 @@
             promptInput.value = '';
             autoResizeTextarea();
 
-            let endpoint, body;
-            const headers = {};
-            if (currentModel === 'image') {
-                endpoint = '/generate';
-                const formData = new FormData();
-                formData.append('prompt', prompt);
-                formData.append('chat_id', currentChatId);
-                body = formData;
-            } else {
-                const settings = getSettings();
-                let tone = settings.tone === 'custom' ? settings.customTone : settings.tone;
-                if (settings.tone === 'custom' && !tone) tone = 'default';
-                endpoint = '/chat';
-                headers['Content-Type'] = 'application/json';
-                body = JSON.stringify({
-                    prompt: prompt,
-                    tone: tone,
-                    file_content: attachedFileContent,
-                    chat_id: currentChatId,
-                    emotion: detectedEmotion
-                });
-            }
+            const settings = getSettings();
+            let tone = settings.tone === 'custom' ? settings.customTone : settings.tone;
+            if (settings.tone === 'custom' && !tone) tone = 'default';
 
             try {
-                const response = await fetch(endpoint, { method: 'POST', headers: currentModel === 'image' ? {} : headers, body });
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prompt: prompt,
+                        tone: tone,
+                        file_content: attachedFileContent,
+                        chat_id: currentChatId,
+                        emotion: detectedEmotion
+                    })
+                });
                 const data = await response.json();
                 loaderBubble.remove();
                 if (!response.ok) throw new Error(data.error || 'An unknown error occurred.');
 
-                if (currentModel === 'image') {
-                    addMessageToChat({ content: data.image_url, sender: 'ai', type: 'image' });
-                } else {
-                    addMessageToChat({ content: data.solution, sender: 'ai', type: 'text' });
-                }
+                addMessageToChat({ content: data.solution, sender: 'ai', type: 'text' });
+
 
                 if (isFirstMessageInSession) {
                     await loadChatHistory();

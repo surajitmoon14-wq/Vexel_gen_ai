@@ -1,4 +1,4 @@
-# --- NEW IMPORTS FOR LOGIN SYSTEM & HISTORY ---
+# --- NEW IMPORTS FOR LOGIN SYSTEM, HISTORY & IMAGEN ---
 from flask import redirect, url_for, session, flash
 from flask_bcrypt import Bcrypt
 from replit import db
@@ -7,7 +7,9 @@ import time
 from datetime import datetime
 import uuid
 import random
-# ------------------------------------
+import vertexai
+from vertexai.preview.vision_models import ImageGenerationModel
+# ----------------------------------------------------
 
 import os
 import base64
@@ -33,13 +35,27 @@ if not os.path.exists(UPLOAD_FOLDER):
 
 # --- Configure API Keys from Environment Secrets ---
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+GCP_PROJECT_ID = os.environ.get('GCP_PROJECT_ID') # <-- IMPORTANT: Add this to your Replit Secrets
 
 # --- Initialize Gemini ---
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
     print("Gemini API configured successfully.")
 else:
-    print("WARNING: GEMINI_API_KEY not set. AI features will not work.")
+    print("WARNING: GEMINI_API_KEY not set. Text-based AI features will not work.")
+
+# --- Initialize Vertex AI for Imagen ---
+if GCP_PROJECT_ID:
+    try:
+        vertexai.init(project=GCP_PROJECT_ID, location="us-central1")
+        imagen_model = ImageGenerationModel.from_pretrained("imagegeneration@005")
+        print("Vertex AI (for Imagen) configured successfully.")
+    except Exception as e:
+        print(f"WARNING: Failed to initialize Vertex AI. Image generation will not work. Error: {e}")
+        imagen_model = None
+else:
+    print("WARNING: GCP_PROJECT_ID not set. Image generation will not work.")
+    imagen_model = None
 
 
 # This dictionary is no longer used for emotion responses but is kept for other potential uses.
@@ -99,14 +115,14 @@ def index():
     )
 
 
-# --- Image Generation Route ---
+# --- Image Generation Route (NOW USES IMAGEN) ---
 @app.route('/generate', methods=['POST'])
 def generate_image():
     if 'username' not in session:
         return jsonify({'error': 'Authentication required.'}), 401
-    if not GEMINI_API_KEY:
+    if not imagen_model:
         return jsonify({'error': 'Server is not configured for image generation.'}), 500
-    
+
     # Handle both form data and JSON data
     if request.content_type and 'application/json' in request.content_type:
         data = request.get_json()
@@ -115,20 +131,40 @@ def generate_image():
     else:
         prompt = request.form.get('prompt')
         chat_id = request.form.get('chat_id')
-    
+
     if not prompt:
         return jsonify({'error': 'Prompt is required.'}), 400
-    
+
     try:
-        # Note: Gemini models don't actually generate images directly
-        # They can only analyze images, not create them
-        # For now, we'll return a helpful message explaining this limitation
-        error_message = "Image generation is not supported by Gemini models. Gemini can analyze and describe images, but cannot create new images. Consider using a different AI service like DALL-E, Midjourney, or Stable Diffusion for image generation."
-        return jsonify({'error': error_message}), 400
-        
+        print(f"Generating image with Imagen for prompt: '{prompt}'")
+        # Generate the image using the Imagen model
+        images = imagen_model.generate_images(
+            prompt=prompt,
+            number_of_images=1
+        )
+
+        # Save the generated image to a file
+        image_filename = f"{uuid.uuid4()}.png"
+        image_path = os.path.join(UPLOAD_FOLDER, image_filename)
+        images[0].save(location=image_path)
+
+        # Create the public URL for the image
+        image_url = f"/{image_path}" # Relative URL for the browser
+
+        # Save the interaction to chat history
+        user_message = {"sender": "user", "content": prompt, "type": "text"}
+        ai_message = {"sender": "ai", "content": f"Here is the image you requested for: '{prompt}'", "type": "image", "url": image_url}
+
+        save_message_to_history(session['username'], chat_id, user_message)
+        save_message_to_history(session['username'], chat_id, ai_message)
+
+        # Return the URL of the generated image
+        return jsonify({'solution': ai_message['content'], 'image_url': image_url})
+
     except Exception as e:
         print(f"Error in /generate: {e}")
-        return jsonify({'error': str(e)}), 500
+        error_message = f"Sorry, I couldn't create the image. The model reported an error: {str(e)}"
+        return jsonify({'error': error_message}), 500
 
 # --- Text Summarization Route ---
 @app.route('/summarize', methods=['POST'])
@@ -161,7 +197,6 @@ def handle_chat():
     user_prompt = data.get('prompt', '')
     emotion = data.get('emotion', 'neutral')
 
-    # ok
     # The previous logic here was blocking emotion prompts from reaching the AI.
     # It has been replaced with a dynamic system instruction below to handle it correctly.
 
@@ -231,9 +266,9 @@ def save_message_to_history(username, chat_id, message):
         # Create a title from the first message content
         title_content = message.get('content', 'New Chat')
         if isinstance(title_content, str):
-             title = (title_content[:30] + "...") if len(title_content) > 30 else title_content
+                title = (title_content[:30] + "...") if len(title_content) > 30 else title_content
         else:
-             title = "New Chat"
+                title = "New Chat"
         user_history[chat_id] = {"title": title, "created_at": time.time(), "messages": []}
 
     # Ensure messages list exists
