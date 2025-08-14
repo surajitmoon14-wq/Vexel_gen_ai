@@ -1,4 +1,4 @@
-# --- NEW IMPORTS FOR LOGIN SYSTEM, HISTORY & IMAGEN ---
+# --- NEW IMPORTS FOR LOGIN SYSTEM, HISTORY & IMAGEN (now DALL-E) ---
 from flask import redirect, url_for, session, flash
 from flask_bcrypt import Bcrypt
 from replit import db
@@ -7,14 +7,16 @@ import time
 from datetime import datetime
 import uuid
 import random
-import vertexai
-# Correct import for GenerativeModel which supports imagen-3.0-generate-001
-from vertexai.generative_models import GenerativeModel
-# ----------------------------------------------------
+# Removed vertexai specific imports as we are switching to DALL-E
+# import vertexai
+# from vertexai.generative_models import GenerativeModel
+
+# New import for OpenAI
+import openai
+import requests # For downloading images from DALL-E's URL response
 
 import os
 import base64
-import requests
 import google.generativeai as genai
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
@@ -36,42 +38,31 @@ if not os.path.exists(UPLOAD_FOLDER):
 
 # --- Configure API Keys from Environment Secrets ---
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-GCP_PROJECT_ID = os.environ.get('GCP_PROJECT_ID') # <-- IMPORTANT: Add this to your Replit Secrets
+# GCP_PROJECT_ID is no longer needed for DALL-E, but keeping it if other Vertex AI features are used
+GCP_PROJECT_ID = os.environ.get('GCP_PROJECT_ID') 
+# GCP_SERVICE_ACCOUNT_KEY is no longer needed for DALL-E
+# GCP_SERVICE_ACCOUNT_KEY = os.environ.get('GCP_SERVICE_ACCOUNT_KEY')
 
-# --- Initialize Gemini ---
+# New API Key for DALL-E
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+
+# --- Initialize Gemini (for chat/summarize) ---
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
     print("Gemini API configured successfully.")
 else:
     print("WARNING: GEMINI_API_KEY not set. Text-based AI features will not work.")
 
-# --- Initialize Vertex AI for Imagen ---
-if GCP_PROJECT_ID:
+# --- Initialize DALL-E (replacing Vertex AI Imagen) ---
+dalle_client = None
+if OPENAI_API_KEY:
     try:
-        # Check if we have a service account key
-        service_account_key = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS_JSON')
-        if service_account_key:
-            # Parse the JSON key and create credentials
-            import json
-            from google.oauth2 import service_account
-            
-            key_data = json.loads(service_account_key)
-            credentials = service_account.Credentials.from_service_account_info(key_data)
-            vertexai.init(project=GCP_PROJECT_ID, location="us-central1", credentials=credentials)
-        else:
-            # Try without explicit credentials (will fail on Replit)
-            vertexai.init(project=GCP_PROJECT_ID, location="us-central1")
-        
-        # Use GenerativeModel for imagen-3.0-generate-001
-        imagen_model = GenerativeModel("imagen-3.0-generate-001")
-        print("Vertex AI (for Imagen) configured successfully.")
+        dalle_client = openai.OpenAI(api_key=OPENAI_API_KEY)
+        print("OpenAI DALL-E client configured successfully.")
     except Exception as e:
-        print(f"WARNING: Failed to initialize Vertex AI. Image generation will not work. Error: {e}")
-        print("HINT: Set GOOGLE_APPLICATION_CREDENTIALS_JSON environment variable with your service account key JSON.")
-        imagen_model = None
+        print(f"WARNING: Failed to initialize OpenAI DALL-E client. Image generation will not work. Error: {e}")
 else:
-    print("WARNING: GCP_PROJECT_ID not set. Image generation will not work.")
-    imagen_model = None
+    print("WARNING: OPENAI_API_KEY not set. Image generation will not work.")
 
 
 # This dictionary is no longer used for emotion responses but is kept for other potential uses.
@@ -131,20 +122,23 @@ def index():
     )
 
 
-# --- Image Generation Route (NOW USES IMAGEN) ---
+# --- Image Generation Route (NOW USES DALL-E) ---
 @app.route('/generate', methods=['POST'])
 def generate_image():
     if 'username' not in session:
         return jsonify({'error': 'Authentication required.'}), 401
-    if not imagen_model:
-        return jsonify({'error': 'Server is not configured for image generation.'}), 500
 
-    # Handle both form data and JSON data
+    # Check if DALL-E client is initialized
+    if not dalle_client:
+        return jsonify({'error': 'Server is not configured for image generation (DALL-E client not initialized).'}), 500
+
+    # Handle both form data and JSON data (frontend should send JSON)
     if request.content_type and 'application/json' in request.content_type:
         data = request.get_json()
         prompt = data.get('prompt')
         chat_id = data.get('chat_id')
     else:
+        # Fallback for form data, though JSON is expected from frontend
         prompt = request.form.get('prompt')
         chat_id = request.form.get('chat_id')
 
@@ -152,39 +146,49 @@ def generate_image():
         return jsonify({'error': 'Prompt is required.'}), 400
 
     try:
-        print(f"Generating image with Imagen for prompt: '{prompt}'")
-        # Generate the image using the new Imagen model
-        response = imagen_model.generate_content([prompt])
+        print(f"Generating image with DALL-E for prompt: '{prompt}'")
 
-        # Extract the generated image data
-        # The structure is response.candidates[0].content.parts[0].inline_data.data for base64
-        image_data = response.candidates[0].content.parts[0].inline_data.data
+        # Generate the image using DALL-E 3
+        response = dalle_client.images.generate(
+            model="dall-e-3", # Specify DALL-E 3 model
+            prompt=prompt,
+            size="1024x1024", # You can choose "1024x1024", "1792x1024", or "1024x1792"
+            quality="standard", # or "hd"
+            n=1, # Number of images to generate
+        )
 
-        # Save the generated image to a file
+        # DALL-E returns a URL to the generated image
+        image_url_from_dalle = response.data[0].url
+
+        # Download the image from the URL and save it locally
         image_filename = f"{uuid.uuid4()}.png"
         image_path = os.path.join(UPLOAD_FOLDER, image_filename)
 
-        # Decode and save the image
-        import base64 # Ensure base64 is imported if not already
-        with open(image_path, "wb") as f:
-            f.write(base64.b64decode(image_data))
+        # Use requests to download the image
+        img_data = requests.get(image_url_from_dalle).content
+        with open(image_path, 'wb') as handler:
+            handler.write(img_data)
 
-        # Create the public URL for the image
-        image_url = f"/{image_path}" # Relative URL for the browser
+        # Create the public URL for the locally saved image
+        final_image_url = f"/{image_path}" # Relative URL for the browser
 
         # Save the interaction to chat history
         user_message = {"sender": "user", "content": prompt, "type": "text"}
-        ai_message = {"sender": "ai", "content": f"Here is the image you requested for: '{prompt}'", "type": "image", "url": image_url}
+        ai_message = {"sender": "ai", "content": f"Here is the image you requested for: '{prompt}'", "type": "image", "url": final_image_url}
 
         save_message_to_history(session['username'], chat_id, user_message)
         save_message_to_history(session['username'], chat_id, ai_message)
 
         # Return the URL of the generated image
-        return jsonify({'solution': ai_message['content'], 'image_url': image_url})
+        return jsonify({'solution': ai_message['content'], 'image_url': final_image_url})
 
+    except openai.APIError as e:
+        print(f"OpenAI API Error in /generate: {e}")
+        error_message = f"Sorry, the DALL-E model reported an API error: {e.user_message or str(e)}"
+        return jsonify({'error': error_message}), 500
     except Exception as e:
-        print(f"Error in /generate: {e}")
-        error_message = f"Sorry, I couldn't create the image. The model reported an error: {str(e)}"
+        print(f"General Error in /generate: {e}")
+        error_message = f"Sorry, I couldn't create the image. An unexpected error occurred: {str(e)}"
         return jsonify({'error': error_message}), 500
 
 # --- Text Summarization Route ---
