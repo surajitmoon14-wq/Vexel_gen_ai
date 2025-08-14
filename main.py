@@ -184,7 +184,7 @@ def generate_image():
 
     except openai.APIError as e:
         print(f"OpenAI API Error in /generate: {e}")
-        error_message = f"Sorry, the DALL-E model reported an API error: {e.user_message or str(e)}"
+        error_message = f"Sorry, the DALL-E model reported an API error: {str(e)}"
         return jsonify({'error': error_message}), 500
     except Exception as e:
         print(f"General Error in /generate: {e}")
