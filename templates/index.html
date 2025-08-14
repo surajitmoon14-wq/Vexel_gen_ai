@@ -96,19 +96,7 @@
         #main-content > header { background-color: var(--main-bg); }
         .light-mode #main-content > header { @apply bg-white/70; }
         
-        /* Hide clickable elements when settings modal is open */
-        .settings-modal-open .sidebar-link,
-        .settings-modal-open .chat-history-item,
-        .settings-modal-open .model-option,
-        .settings-modal-open #generate-image-button,
-        .settings-modal-open #generate-gemini-prompt-button,
-        .settings-modal-open button:not(#settings-modal button),
-        .settings-modal-open .tts-btn,
-        .settings-modal-open .copy-btn,
-        .settings-modal-open .delete-chat-btn {
-            pointer-events: none !important;
-            opacity: 0.6 !important;
-        }
+        
 
         /* --- ADDED: Emotion AI View & Typing Indicator Styles --- */
         main.emotion-active-layout { @apply flex-row items-start gap-4; }
