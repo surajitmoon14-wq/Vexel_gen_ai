@@ -656,4 +656,4 @@ def login():
         else:
             # Input is likely a username
             username = login_input
-            print(f"Login attempt with username: {
+            print(f"Login attempt with username: {username}")
