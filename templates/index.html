@@ -95,6 +95,20 @@
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         #main-content > header { background-color: var(--main-bg); }
         .light-mode #main-content > header { @apply bg-white/70; }
+        
+        /* Hide clickable elements when settings modal is open */
+        .settings-modal-open .sidebar-link,
+        .settings-modal-open .chat-history-item,
+        .settings-modal-open .model-option,
+        .settings-modal-open #generate-image-button,
+        .settings-modal-open #generate-gemini-prompt-button,
+        .settings-modal-open button:not(#settings-modal button),
+        .settings-modal-open .tts-btn,
+        .settings-modal-open .copy-btn,
+        .settings-modal-open .delete-chat-btn {
+            pointer-events: none !important;
+            opacity: 0.6 !important;
+        }
 
         /* --- ADDED: Emotion AI View & Typing Indicator Styles --- */
         main.emotion-active-layout { @apply flex-row items-start gap-4; }
@@ -501,6 +515,14 @@
             updateViewForModel(); // Initial view setup
             setupEventListeners();
             loadModels();
+            
+            // Handle ESC key to close settings modal
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && !settingsModal.classList.contains('hidden')) {
+                    settingsModal.classList.add('hidden');
+                    document.body.classList.remove('settings-modal-open');
+                }
+            });
         }
 
         function setupEventListeners() {
@@ -515,7 +537,10 @@
             fileInput.addEventListener('change', handleFileAttachment);
             conversationSummaryBtn.addEventListener('click', (e) => { e.stopPropagation(); conversationSummaryDropdown.classList.toggle('hidden'); });
             summarizeAllBtn.addEventListener('click', handleConversationSummary);
-            navSettingsBtn.addEventListener('click', () => settingsModal.classList.remove('hidden'));
+            navSettingsBtn.addEventListener('click', () => {
+                settingsModal.classList.remove('hidden');
+                document.body.classList.add('settings-modal-open');
+            });
             saveSettingsBtn.addEventListener('click', saveAndCloseSettings);
             resetSettingsBtn.addEventListener('click', resetAndApplyDefaults);
             toneBtnGroup.addEventListener('click', handleToneButtonClick);
@@ -905,12 +930,15 @@
             };
             saveSettings(currentSettings);
             settingsModal.classList.add('hidden');
+            document.body.classList.remove('settings-modal-open');
             showNotification('Settings saved!', 'success');
         }
 
         function resetAndApplyDefaults() {
             saveSettings({ ...DEFAULT_SETTINGS });
             updateSettingsUI(DEFAULT_SETTINGS);
+            settingsModal.classList.add('hidden');
+            document.body.classList.remove('settings-modal-open');
             showNotification('Settings reset to default.', 'info');
         }
 
@@ -935,6 +963,11 @@
             if (!sidebar.contains(e.target) && !sidebarToggle.contains(e.target) && window.innerWidth < 1024) { sidebar.classList.add('-translate-x-full'); }
             if (!modelSelectorBtn.contains(e.target) && !modelDropdown.contains(e.target)) { modelDropdown.classList.add('hidden'); dropdownArrow.classList.remove('rotate-180'); }
             if (!conversationSummaryBtn.contains(e.target) && !conversationSummaryDropdown.contains(e.target)) { conversationSummaryDropdown.classList.add('hidden'); }
+            // Close settings modal when clicking outside
+            if (!settingsModal.classList.contains('hidden') && e.target === settingsModal) {
+                settingsModal.classList.add('hidden');
+                document.body.classList.remove('settings-modal-open');
+            }
         }
         function toggleModelDropdown() { modelDropdown.classList.toggle('hidden'); dropdownArrow.classList.toggle('rotate-180'); }
         function showNotification(message, type = 'info') {
