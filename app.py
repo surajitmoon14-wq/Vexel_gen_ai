@@ -552,8 +552,12 @@ def signup():
             'username': username
         }
         
+        # Store user data and email mapping
         db[user_key] = json.dumps(user_data)
         db[email_key] = username  # Map email to username for login lookup
+        
+        print(f"Created user: {username} with email: {email}")
+        print(f"User key: {user_key}, Email key: {email_key}")
         
         # Create a default profile for the new user
         profile_key = get_profile_key(username)
@@ -578,6 +582,10 @@ def login():
         email_key = get_email_key(email)
         username = db.get(email_key)
         
+        print(f"Login attempt for email: {email}")
+        print(f"Email key: {email_key}")
+        print(f"Found username: {username}")
+        
         if not username:
             flash("Email not found. Please check your email or sign up.", "danger")
             return redirect(url_for('login'))
@@ -585,10 +593,18 @@ def login():
         user_key = get_user_key(username)
         user_data_str = db.get(user_key)
         
+        print(f"User key: {user_key}")
+        print(f"User data exists: {user_data_str is not None}")
+        
         if user_data_str:
             try:
+                # Try to parse as JSON first (new format)
                 user_data = json.loads(user_data_str)
-                stored_password = user_data.get('password')
+                if isinstance(user_data, dict):
+                    stored_password = user_data.get('password')
+                else:
+                    # If it's not a dict, treat as legacy format
+                    stored_password = user_data_str
             except (json.JSONDecodeError, TypeError):
                 # Handle legacy format (just password string)
                 stored_password = user_data_str
@@ -596,7 +612,7 @@ def login():
             if stored_password and bcrypt.check_password_hash(stored_password, password):
                 session['username'] = username
                 return redirect(url_for('index'))
-                
+        
         flash("Invalid email or password.", "danger")
         return redirect(url_for('login'))
     return render_template('login.html')
