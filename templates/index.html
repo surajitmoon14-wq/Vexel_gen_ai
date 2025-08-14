@@ -8,12 +8,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-    <!-- Libraries for Markdown and Code Highlighting -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 
-    <!-- AI Model Library for Face & Emotion Recognition -->
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 
     <style>
@@ -98,12 +96,12 @@
         #main-content > header { background-color: var(--main-bg); }
         .light-mode #main-content > header { @apply bg-white/70; }
 
-        /* --- Emotion AI View & Typing Indicator Styles --- */
+        /* --- ADDED: Emotion AI View & Typing Indicator Styles --- */
         main.emotion-active-layout { @apply flex-row items-start gap-4; }
-        main.emotion-active-layout #emotion-view-container { @apply flex-shrink-0 w-full max-w-md; }
+        main.emotion-active-layout #emotion-view { @apply flex-shrink-0 w-full max-w-md; }
         main.emotion-active-layout #chat-view { @apply flex-grow h-full; }
 
-        #emotion-view-container { @apply flex-grow flex-col justify-center items-center text-center p-0; }
+        #emotion-view { @apply flex-grow flex-col justify-center items-center text-center p-0; }
         #emotion-webcam {
             width: 100%;
             height: auto;
@@ -149,8 +147,7 @@
                     <input type="search" id="history-search-input" placeholder="Search history..." class="w-full px-2 py-1.5 bg-gray-600 border border-gray-500 rounded-md text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-pink-500">
                 </div>
                 <div id="chat-history-list" class="mt-2 space-y-1">
-                    <!-- Chat history items will be inserted here by JavaScript -->
-                </div>
+                    </div>
             </div>
         </nav>
         <div class="p-2 border-t border-gray-700">
@@ -179,11 +176,8 @@
                     </div>
                 </div>
             </div>
-
-            <div id="user-profile-header" class="flex items-center space-x-3 text-white">
-                <!-- This will be populated by JavaScript with user info and logout button -->
-            </div>
-
+             <div id="user-profile-header" class="flex items-center space-x-3 text-white">
+                </div>
             <div class="flex items-center space-x-2">
                 <button id="export-chat-btn" class="p-2 rounded-full text-blue-400 hover:bg-gray-700" title="Export Conversation">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
@@ -200,7 +194,7 @@
         </header>
 
         <main class="flex-grow p-4 md:p-6 overflow-y-hidden flex flex-col">
-            <div id="emotion-view-container" class="page-content hidden">
+            <div id="emotion-view" class="page-content hidden">
                 <div class="relative">
                      <video id="emotion-webcam" autoplay muted playsinline></video>
                 </div>
@@ -239,7 +233,6 @@
         <div class="p-8 rounded-2xl shadow-2xl w-full max-w-4xl m-4 relative glassmorphism max-h-[90vh] overflow-y-auto">
             <h2 class="text-2xl font-bold text-center mb-6">Customize Vexel AI</h2>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <!-- Profile & AI Settings -->
                 <div class="space-y-6">
                     <div>
                         <h3 class="block mb-3 font-medium text-lg">User Profile</h3>
@@ -266,7 +259,6 @@
                     </div>
                 </div>
 
-                <!-- Appearance Settings -->
                 <div class="space-y-4">
                      <h3 class="block mb-3 font-medium text-lg">Appearance</h3>
                      <div class="space-y-4">
@@ -288,7 +280,6 @@
                      </div>
                 </div>
 
-                <!-- Color Settings -->
                 <div class="space-y-4">
                     <h3 class="block mb-3 font-medium text-lg">Color Palette</h3>
                      <div class="grid grid-cols-2 gap-4">
@@ -396,7 +387,7 @@
         const userProfileHeader = getEl('user-profile-header');
 
         // Emotion AI Elements
-        const emotionViewContainer = getEl('emotion-view-container');
+        const emotionView = getEl('emotion-view');
         const emotionWebcam = getEl('emotion-webcam');
         const emotionOverlay = getEl('emotion-overlay');
         const chatView = getEl('chat-view');
@@ -420,22 +411,32 @@
         // --- Constants ---
         const GOOGLE_FONTS = ["Inter", "Roboto", "Lato", "Montserrat", "Oswald", "Source Code Pro", "Nunito"];
         const DEFAULT_SETTINGS = {
-            font: 'Inter', fontSize: '16',
-            displayName: 'User', avatarUrl: '',
-            userTextColor: '#ffffff', aiTextColor: '#e5e7eb',
-            sidebarInputBg: '#1f2937', userBubble: 'transparent', aiBubble: 'transparent',
-            bg1: '#4a0e69', bg2: '#d946ef', bg3: '#1a1a2e', bg4: '#ec4899',
-            tone: 'default', customTone: '', theme: 'dark'
+            font: 'Inter',
+            fontSize: '16',
+            displayName: 'User',
+            avatarUrl: '',
+            userTextColor: '#ffffff',
+            aiTextColor: '#e5e7eb',
+            sidebarInputBg: '#1f2937',
+            userBubble: 'transparent',
+            aiBubble: 'transparent',
+            bg1: '#4a0e69',
+            bg2: '#d946ef',
+            bg3: '#1a1a2e',
+            bg4: '#ec4899',
+            tone: 'default',
+            customTone: '',
+            theme: 'dark'
         };
 
         // --- Initialization ---
         async function initialize() {
             populateFontSelector();
-            await loadSettings(); // Load settings from backend
+            loadSettings();
             await loadChatHistory();
             updateViewForModel(); // Initial view setup
             setupEventListeners();
-            loadFaceApiModels();
+            loadModels();
         }
 
         function setupEventListeners() {
@@ -452,7 +453,7 @@
             summarizeAllBtn.addEventListener('click', handleConversationSummary);
             navSettingsBtn.addEventListener('click', () => settingsModal.classList.remove('hidden'));
             saveSettingsBtn.addEventListener('click', saveAndCloseSettings);
-            resetSettingsBtn.addEventListener('click', resetSettingsToDefault);
+            resetSettingsBtn.addEventListener('click', resetAndApplyDefaults);
             toneBtnGroup.addEventListener('click', handleToneButtonClick);
             themeBtnGroup.addEventListener('click', handleThemeButtonClick);
             chatHistoryList.addEventListener('click', handleHistoryItemClick);
@@ -473,7 +474,8 @@
         // --- CHAT HISTORY FUNCTIONS ---
         async function loadChatHistory() {
             try {
-                const response = await fetchWithAuth('/history');
+                const response = await fetch('/history');
+                if (!response.ok) throw new Error('Failed to load history.');
                 const groupedHistory = await response.json();
                 chatHistoryList.innerHTML = '';
                 const groupOrder = ["Today", "Yesterday"];
@@ -483,7 +485,11 @@
                     if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
                     if (aIndex !== -1) return -1;
                     if (bIndex !== -1) return 1;
-                    return new Date(b) - new Date(a);
+                    try {
+                        return new Date(b) - new Date(a);
+                    } catch(e) {
+                        return 0;
+                    }
                 });
 
                 for (const groupName of sortedGroups) {
@@ -540,15 +546,15 @@
             if (!chatItem) return;
             const chatId = chatItem.dataset.chatId;
             if (e.target.closest('.delete-chat-btn')) {
-                if (confirm('Are you sure you want to delete this chat?')) {
-                    try {
-                        await fetchWithAuth(`/chat/${chatId}`, { method: 'DELETE' });
-                        chatItem.remove();
-                        if (currentChatId === chatId) startNewChat();
-                        showNotification('Chat deleted.', 'info');
-                    } catch (error) {
-                        showNotification(error.message, 'error');
-                    }
+                // MODIFIED: Removed confirm() popup for a smoother experience
+                try {
+                    const response = await fetch(`/chat/${chatId}`, { method: 'DELETE' });
+                    if (!response.ok) throw new Error('Failed to delete chat.');
+                    chatItem.remove();
+                    if (currentChatId === chatId) startNewChat();
+                    showNotification('Chat deleted.', 'info');
+                } catch (error) {
+                    showNotification(error.message, 'error');
                 }
                 return;
             }
@@ -557,10 +563,13 @@
 
         async function loadChat(chatId) {
             try {
-                const response = await fetchWithAuth(`/chat/${chatId}`);
+                const response = await fetch(`/chat/${chatId}`);
+                if (!response.ok) throw new Error('Failed to load chat messages.');
                 const messages = await response.json();
                 chatContainer.innerHTML = '';
-                messages.forEach(msg => addMessageToChat(msg));
+                if(messages) {
+                    messages.forEach(msg => addMessageToChat(msg));
+                }
                 currentChatId = chatId;
                 isFirstMessageInSession = false;
                 document.querySelectorAll('.sidebar-link, .chat-history-item').forEach(el => el.classList.remove('active'));
@@ -572,15 +581,15 @@
         }
 
         async function handleClearHistory() {
-            if (confirm('Are you sure you want to delete all chat history? This cannot be undone.')) {
-                try {
-                    await fetchWithAuth('/history/clear', { method: 'POST' });
-                    chatHistoryList.innerHTML = '';
-                    startNewChat();
-                    showNotification('All chat history has been cleared.', 'success');
-                } catch (error) {
-                    showNotification(error.message, 'error');
-                }
+            // MODIFIED: Removed confirm() popup for a smoother experience
+            try {
+                const response = await fetch('/history/clear', { method: 'POST' });
+                if (!response.ok) throw new Error('Failed to clear history.');
+                chatHistoryList.innerHTML = '';
+                startNewChat();
+                showNotification('All chat history has been cleared.', 'success');
+            } catch (error) {
+                showNotification(error.message, 'error');
             }
         }
 
@@ -650,7 +659,7 @@
         }
 
         // --- EMOTION RECOGNITION FUNCTIONS ---
-        async function loadFaceApiModels() {
+        async function loadModels() {
             try {
                 await Promise.all([
                     faceapi.nets.tinyFaceDetector.loadFromUri('/static/models'),
@@ -663,7 +672,7 @@
         }
 
         async function startWebcam() {
-            if (webcamStream) return;
+            if (webcamStream) return; // Already running
              try {
                 webcamStream = await navigator.mediaDevices.getUserMedia({ video: true });
                 emotionWebcam.srcObject = webcamStream;
@@ -715,18 +724,19 @@
         }
 
         async function sendEmotionUpdate(emotion) {
-            const prompt = `(System: The user's expression just changed to ${emotion}. Comment on this observation with a quote or a brief, insightful remark.)`;
+            const prompt = `(System: The user's expression just changed to ${emotion}. Comment on this observation.)`;
             const loaderBubble = addMessageToChat({ content: '', sender: 'ai', type: 'loader' });
 
             isAwaitingResponse = true;
             try {
-                const response = await fetchWithAuth('/chat', {
+                const response = await fetch('/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ prompt: prompt, chat_id: currentChatId, emotion: emotion })
                 });
                 const data = await response.json();
                 loaderBubble.remove();
+                if (!response.ok) throw new Error(data.error);
                 addMessageToChat({ content: data.solution, sender: 'ai', type: 'text' });
             } catch (error) {
                 loaderBubble.remove();
@@ -737,18 +747,9 @@
         }
 
         // --- UI & Customization ---
-        async function loadSettings() {
-            try {
-                const response = await fetchWithAuth('/settings');
-                const settings = await response.json();
-                applySettings(settings);
-                updateSettingsUI(settings);
-            } catch (error) {
-                showNotification("Could not load user settings. Using defaults.", "error");
-                applySettings(DEFAULT_SETTINGS);
-                updateSettingsUI(DEFAULT_SETTINGS);
-            }
-        }
+        function getSettings() { return JSON.parse(localStorage.getItem('vexelSettingsV7')) || { ...DEFAULT_SETTINGS }; }
+        function saveSettings(settings) { localStorage.setItem('vexelSettingsV7', JSON.stringify(settings)); applySettings(settings); }
+        function loadSettings() { const settings = getSettings(); applySettings(settings); updateSettingsUI(settings); }
 
         function applySettings(settings) {
             document.body.classList.toggle('light-mode', settings.theme === 'light');
@@ -788,11 +789,11 @@
         }
 
         function updateSettingsUI(settings) {
-            displayNameInput.value = settings.displayName;
-            avatarUrlInput.value = settings.avatarUrl;
             fontSelector.value = settings.font;
             fontSizeSlider.value = settings.fontSize;
             fontSizeValue.textContent = `${settings.fontSize}px`;
+            displayNameInput.value = settings.displayName;
+            avatarUrlInput.value = settings.avatarUrl;
             userTextColorInput.value = settings.userTextColor;
             aiTextColorInput.value = settings.aiTextColor;
             userBubbleColorInput.value = settings.userBubble === 'transparent' ? '#ffffff' : settings.userBubble;
@@ -812,12 +813,12 @@
             });
         }
 
-        async function saveAndCloseSettings() {
+        function saveAndCloseSettings() {
             const currentSettings = {
-                displayName: displayNameInput.value,
-                avatarUrl: avatarUrlInput.value,
                 font: fontSelector.value,
                 fontSize: fontSizeSlider.value,
+                displayName: displayNameInput.value,
+                avatarUrl: avatarUrlInput.value,
                 userTextColor: userTextColorInput.value,
                 aiTextColor: aiTextColorInput.value,
                 sidebarInputBg: sidebarInputColorInput.value,
@@ -831,26 +832,15 @@
                 customTone: customToneInput.value,
                 theme: themeBtnGroup.querySelector('.selected')?.dataset.theme || 'dark'
             };
-
-            try {
-                await fetchWithAuth('/settings', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(currentSettings)
-                });
-                applySettings(currentSettings); // Apply immediately for responsiveness
-                settingsModal.classList.add('hidden');
-                showNotification('Settings saved!', 'success');
-            } catch (error) {
-                showNotification(`Error saving settings: ${error.message}`, 'error');
-            }
+            saveSettings(currentSettings);
+            settingsModal.classList.add('hidden');
+            showNotification('Settings saved!', 'success');
         }
 
-        function resetSettingsToDefault() {
-            if (confirm("Are you sure you want to reset all settings to their default values? You will need to click 'Save & Close' to make this permanent.")) {
-                updateSettingsUI(DEFAULT_SETTINGS);
-                applySettings(DEFAULT_SETTINGS);
-            }
+        function resetAndApplyDefaults() {
+            saveSettings({ ...DEFAULT_SETTINGS });
+            updateSettingsUI(DEFAULT_SETTINGS);
+            showNotification('Settings reset to default.', 'info');
         }
 
         function populateFontSelector() {
@@ -906,18 +896,20 @@
             const isEmotion = currentModel === 'emotion';
             mainElement.classList.toggle('emotion-active-layout', isEmotion);
 
-            emotionViewContainer.classList.toggle('hidden', !isEmotion);
-            chatView.classList.remove('hidden'); // Always show chat view now
-
             if (isEmotion) {
+                emotionView.classList.remove('hidden');
+                chatView.classList.remove('hidden'); // Show both
                 cameraControls.classList.remove('hidden');
                 fileInputLabel.style.display = 'none';
+                startNewChat(); // Start a fresh chat for the emotion session
             } else {
-                stopWebcam();
+                stopWebcam(); // Always stop webcam when leaving emotion mode
+                emotionView.classList.add('hidden');
+                chatView.classList.remove('hidden');
                 cameraControls.classList.add('hidden');
                 fileInputLabel.style.display = currentModel === 'chat' ? 'block' : 'none';
+                startNewChat(); // Start a fresh chat for the new model
             }
-            startNewChat();
         }
 
         function handleNewChatClick(e) {
@@ -956,7 +948,6 @@
             if (sender === 'system') {
                 bubbleWrapper.innerHTML = `<div class="text-center text-xs text-gray-400 italic w-full py-2">${content}</div>`;
                 chatContainer.appendChild(bubbleWrapper);
-                chatContainer.scrollTop = chatContainer.scrollHeight;
                 return;
             }
 
@@ -989,7 +980,8 @@
             return bubbleWrapper;
         }
 
-        function handleFileAttachment(event) {
+        // ... (rest of the functions: handleFileAttachment, showAttachmentPreview, etc.)
+         function handleFileAttachment(event) {
             const file = event.target.files[0];
             if (!file) return;
             const reader = new FileReader();
@@ -1045,7 +1037,6 @@
                 promptForm.requestSubmit();
             }
         }
-
         async function handleFormSubmit(e) {
             e.preventDefault();
             const prompt = promptInput.value.trim();
@@ -1060,75 +1051,40 @@
             promptInput.value = '';
             autoResizeTextarea();
 
-            // --- MODIFIED SECTION: Image Generation Logic ---
+            let endpoint, body;
+            const headers = {};
             if (currentModel === 'image') {
-                // IMPORTANT: Replace with your actual Google AI API key
-                const apiKey = "YOUR_GOOGLE_API_KEY"; 
-                const modelName = "imagen-3.0-generate-002";
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:predict?key=${apiKey}`;
-
-                const payload = {
-                    "instances": [{ "prompt": prompt }],
-                    "parameters": { "sampleCount": 1 }
-                };
-
-                try {
-                    const response = await fetch(apiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        const errorMessage = errorData?.error?.message || `An HTTP error occurred: ${response.status}`;
-                        throw new Error(errorMessage);
-                    }
-
-                    const responseData = await response.json();
-                    const imageBase64 = responseData?.predictions?.[0]?.bytesBase64Encoded;
-
-                    loaderBubble.remove(); // Remove loader
-
-                    if (imageBase64) {
-                        const imageUrl = `data:image/png;base64,${imageBase64}`;
-                        addMessageToChat({ content: imageUrl, sender: 'ai', type: 'image' });
-
-                        if (isFirstMessageInSession) {
-                           // Logic to handle session state, no backend call needed here for history
-                        }
-                        isFirstMessageInSession = false;
-                    } else {
-                        throw new Error("The model did not return an image. It may have been blocked by safety filters.");
-                    }
-                } catch (error) {
-                    loaderBubble.remove();
-                    console.error('Image Generation Error:', error);
-                    addMessageToChat({ content: `Error: ${error.message}`, sender: 'ai', type: 'text' });
-                } finally {
-                    clearAttachment();
-                }
-                return; // Stop the function here for image generation
+                endpoint = '/generate';
+                const formData = new FormData();
+                formData.append('prompt', prompt);
+                formData.append('chat_id', currentChatId);
+                body = formData;
+            } else {
+                const settings = getSettings();
+                let tone = settings.tone === 'custom' ? settings.customTone : settings.tone;
+                if (settings.tone === 'custom' && !tone) tone = 'default';
+                endpoint = '/chat';
+                headers['Content-Type'] = 'application/json';
+                body = JSON.stringify({
+                    prompt: prompt,
+                    tone: tone,
+                    file_content: attachedFileContent,
+                    chat_id: currentChatId,
+                    emotion: detectedEmotion
+                });
             }
 
-            // --- Original Chat and Emotion AI Logic (Uses your backend) ---
-            const settings = await getSettingsFromUI();
-            const endpoint = '/chat';
-            const headers = { 'Content-Type': 'application/json' };
-            const body = JSON.stringify({
-                prompt: prompt,
-                tone: settings.tone === 'custom' ? settings.customTone : settings.tone,
-                file_content: attachedFileContent,
-                chat_id: currentChatId,
-                emotion: detectedEmotion
-            });
-
             try {
-                const response = await fetchWithAuth(endpoint, { method: 'POST', headers: headers, body: body });
+                const response = await fetch(endpoint, { method: 'POST', headers: currentModel === 'image' ? {} : headers, body });
                 const data = await response.json();
                 loaderBubble.remove();
+                if (!response.ok) throw new Error(data.error || 'An unknown error occurred.');
 
-                addMessageToChat({ content: data.solution, sender: 'ai', type: 'text' });
+                if (currentModel === 'image') {
+                    addMessageToChat({ content: data.image_url, sender: 'ai', type: 'image' });
+                } else {
+                    addMessageToChat({ content: data.solution, sender: 'ai', type: 'text' });
+                }
 
                 if (isFirstMessageInSession) {
                     await loadChatHistory();
@@ -1146,21 +1102,6 @@
                 clearAttachment();
             }
         }
-
-
-        async function getSettingsFromUI() {
-             return {
-                displayName: displayNameInput.value, avatarUrl: avatarUrlInput.value,
-                font: fontSelector.value, fontSize: fontSizeSlider.value,
-                userTextColor: userTextColorInput.value, aiTextColor: aiTextColorInput.value,
-                sidebarInputBg: sidebarInputColorInput.value, userBubble: userBubbleColorInput.value, aiBubble: aiBubbleColorInput.value,
-                bg1: bgColor1Input.value, bg2: bgColor2Input.value, bg3: bgColor3Input.value, bg4: bgColor4Input.value,
-                tone: toneBtnGroup.querySelector('.selected')?.dataset.tone || 'default',
-                customTone: customToneInput.value,
-                theme: themeBtnGroup.querySelector('.selected')?.dataset.theme || 'dark'
-            };
-        }
-
         async function handleConversationSummary() {
             conversationSummaryDropdown.classList.add('hidden');
             let textToSummarize = '';
@@ -1183,31 +1124,17 @@
             const summaryContent = summaryModal.querySelector('#summary-content');
             summaryModal.querySelector('.close-summary-btn').addEventListener('click', () => summaryModal.remove());
             try {
-                const response = await fetchWithAuth('/summarize', {
+                const response = await fetch('/summarize', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text: text })
                 });
                 const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Failed to get summary.');
                 summaryContent.innerHTML = data.summary.replace(/\n/g, '<br>');
             } catch (error) {
                 summaryContent.innerHTML = `<p class="text-red-400">Error: ${error.message}</p>`;
             }
-        }
-
-        // --- Auth Helper ---
-        async function fetchWithAuth(url, options = {}) {
-            const response = await fetch(url, options);
-            if (response.status === 401) {
-                // Session expired or user not logged in
-                window.location.href = '/login';
-                throw new Error('Session expired. Please log in again.');
-            }
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ error: 'An unknown error occurred' }));
-                throw new Error(errorData.error);
-            }
-            return response;
         }
 
         // --- Run App ---

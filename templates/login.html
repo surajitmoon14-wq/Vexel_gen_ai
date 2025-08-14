@@ -8,41 +8,12 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --font-family: 'Inter', sans-serif;
-            --bg-gradient-start: #4a0e69;
-            --bg-gradient-mid1: #d946ef;
-            --bg-gradient-mid2: #1a1a2e;
-            --bg-gradient-end: #ec4899;
-        }
-        body {
-            font-family: var(--font-family);
-            background: linear-gradient(135deg, var(--bg-gradient-start), var(--bg-gradient-mid1), var(--bg-gradient-mid2), var(--bg-gradient-end));
-            background-size: 400% 400%;
-            animation: gradientBG 18s ease infinite;
-        }
-        @keyframes gradientBG {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-        }
-        .glassmorphism {
-            background: rgba(25, 25, 40, 0.4); /* Darker semi-transparent background */
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        /* Custom focus style to match the chat app */
-        .form-input:focus {
-            outline: none;
-            box-shadow: 0 0 0 2px var(--bg-gradient-mid2), 0 0 0 4px var(--bg-gradient-mid1);
-        }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='auth_style.css') }}">
 </head>
 <body class="text-white">
 
     <div class="flex items-center justify-center min-h-screen">
-        <div class="glassmorphism w-full max-w-md p-8 space-y-8 rounded-2xl shadow-2xl">
+        <div class="auth-container">
             <div class="text-center">
                 <div class="flex justify-center mx-auto mb-4">
                      <img src="/static/bot.png" alt="Vexel AI Logo" class="w-16 h-16 rounded-full">
@@ -53,93 +24,45 @@
                 <p class="mt-2 text-gray-300">Sign in to continue</p>
             </div>
 
-            <form id="login-form" class="space-y-6">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST" action="/login" class="space-y-6">
                 <div>
-                    <label for="email" class="text-sm font-medium text-gray-200">Email Address</label>
-                    <input id="email" name="email" type="email" autocomplete="email" required
-                           class="form-input block w-full px-4 py-3 mt-2 text-white bg-gray-900/50 border border-gray-600 rounded-lg focus:border-pink-500 transition-shadow duration-200"
-                           placeholder="you@example.com">
+                    <label for="username" class="sr-only">Username</label>
+                    <input id="username" name="username" type="text" autocomplete="username" required
+                           class="form-input"
+                           placeholder="Username">
                 </div>
 
                 <div>
-                    <label for="password" class="text-sm font-medium text-gray-200">Password</label>
+                    <label for="password" class="sr-only">Password</label>
                     <input id="password" name="password" type="password" autocomplete="current-password" required
-                           class="form-input block w-full px-4 py-3 mt-2 text-white bg-gray-900/50 border border-gray-600 rounded-lg focus:border-pink-500 transition-shadow duration-200"
-                           placeholder="••••••••">
+                           class="form-input"
+                           placeholder="Password">
                 </div>
 
-                <div id="error-message" class="hidden p-3 text-center text-sm text-red-300 bg-red-500/20 rounded-lg">
-                    </div>
-
                 <div>
-                    <button type="submit" id="login-button"
+                    <button type="submit"
                             class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-base font-semibold text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-purple-500 transition-all transform hover:scale-105">
-                        <span class="button-text">Sign In</span>
-                        <div class="loader hidden animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        Sign In
                     </button>
                 </div>
             </form>
 
             <p class="text-sm text-center text-gray-400">
                 Don't have an account?
-                <a href="/register" class="font-medium text-pink-400 hover:text-pink-300">
+                <a href="{{ url_for('signup') }}" class="font-medium text-pink-400 hover:text-pink-300">
                     Sign Up
                 </a>
             </p>
         </div>
     </div>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const loginForm = document.getElementById('login-form');
-            const errorMessageDiv = document.getElementById('error-message');
-            const loginButton = document.getElementById('login-button');
-            const buttonText = loginButton.querySelector('.button-text');
-            const buttonLoader = loginButton.querySelector('.loader');
-
-            loginForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-
-                // Hide previous errors and show loader
-                errorMessageDiv.classList.add('hidden');
-                buttonText.classList.add('hidden');
-                buttonLoader.classList.remove('hidden');
-                loginButton.disabled = true;
-
-                const email = document.getElementById('email').value;
-                const password = document.getElementById('password').value;
-
-                try {
-                    const response = await fetch('/login', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ email, password }),
-                    });
-
-                    if (response.ok) {
-                        // On successful login, redirect to the main chat page
-                        window.location.href = '/'; 
-                    } else {
-                        // If there's an error, parse it and display it
-                        const errorData = await response.json();
-                        errorMessageDiv.textContent = errorData.error || 'Invalid credentials. Please try again.';
-                        errorMessageDiv.classList.remove('hidden');
-                    }
-                } catch (error) {
-                    // Handle network errors
-                    errorMessageDiv.textContent = 'A network error occurred. Please try again later.';
-                    errorMessageDiv.classList.remove('hidden');
-                } finally {
-                    // Restore button state
-                    buttonText.classList.remove('hidden');
-                    buttonLoader.classList.add('hidden');
-                    loginButton.disabled = false;
-                }
-            });
-        });
-    </script>
 
 </body>
 </html>

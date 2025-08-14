@@ -1175,3 +1175,1238 @@
     </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vexel AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <!-- Libraries for Markdown and Code Highlighting -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+    <!-- AI Model Library for Face & Emotion Recognition -->
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
+    <style>
+        :root {
+            --font-family: 'Inter', sans-serif;
+            --font-size: 16px;
+            --text-color: #ffffff;
+            --sidebar-bg: #1f2937;
+            --input-bg: #1f2937;
+            --bg-gradient-start: #4a0e69;
+            --bg-gradient-mid1: #d946ef;
+            --bg-gradient-mid2: #1a1a2e;
+            --bg-gradient-end: #ec4899;
+            --user-bubble-bg: transparent;
+            --ai-bubble-bg: transparent;
+            --user-bubble-text: #ffffff;
+            --ai-bubble-text: #e5e7eb;
+            --main-bg: transparent;
+        }
+        .light-mode {
+            --text-color: #111827;
+            --sidebar-bg: #e5e7eb;
+            --input-bg: #d1d5db;
+            --bg-gradient-start: #e0e7ff;
+            --bg-gradient-mid1: #c7d2fe;
+            --bg-gradient-mid2: #a5b4fc;
+            --bg-gradient-end: #818cf8;
+            --user-bubble-bg: #c7d2fe;
+            --ai-bubble-bg: #e5e7eb;
+            --user-bubble-text: #111827;
+            --ai-bubble-text: #1f2937;
+            --main-bg: rgba(249, 250, 251, 0.7);
+        }
+        body {
+            font-family: var(--font-family);
+            font-size: var(--font-size);
+            color: var(--text-color);
+            background: linear-gradient(135deg, var(--bg-gradient-start), var(--bg-gradient-mid1), var(--bg-gradient-mid2), var(--bg-gradient-end));
+            background-size: 400% 400%;
+            animation: gradientBG 18s ease infinite;
+        }
+        @keyframes gradientBG { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        .glassmorphism { backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .light-mode .glassmorphism { border: 1px solid rgba(0, 0, 0, 0.1); }
+        .sidebar { transition: transform 0.3s ease-in-out, background-color 0.3s; background-color: var(--sidebar-bg); }
+        #prompt-input { background-color: var(--input-bg); }
+        .sidebar-link { @apply flex items-center p-3 my-1 rounded-lg; }
+        .light-mode .sidebar-link { @apply text-gray-700 hover:bg-gray-300; }
+        .light-mode .sidebar-link.active { @apply bg-indigo-200; }
+        .sidebar-link.active { @apply bg-pink-600/30; }
+        .loader { border: 4px solid rgba(255, 255, 255, 0.3); border-top: 4px solid #fff; border-radius: 50%; width: 1.5rem; height: 1.5rem; animation: spin 1s linear infinite; }
+        .light-mode .loader { border-color: rgba(0,0,0,0.2); border-top-color: #4f46e5; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .chat-wrapper { @apply max-w-4xl mx-auto w-full h-full flex flex-col; }
+        .chat-bubble { @apply p-4 rounded-xl max-w-2xl mb-4 flex flex-col items-start space-y-2 border-2 border-transparent transition-all; }
+        .user-bubble { background-color: var(--user-bubble-bg); color: var(--user-bubble-text); @apply ml-auto; }
+        .ai-bubble { background-color: var(--ai-bubble-bg); color: var(--ai-bubble-text); @apply glassmorphism mr-auto; }
+        .ai-bubble pre { @apply bg-black/50 text-white p-4 rounded-lg my-2 overflow-x-auto relative; font-family: 'Courier New', Courier, monospace; }
+        .light-mode .ai-bubble pre { @apply bg-gray-200 text-black; }
+        .copy-btn { @apply absolute top-2 right-2 p-1.5 rounded-md bg-gray-600 hover:bg-gray-500 text-gray-300 transition-colors; }
+        #chat-container::-webkit-scrollbar { width: 8px; }
+        #chat-container::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+        #chat-container::-webkit-scrollbar-thumb { background-color: #ec4899; border-radius: 10px; }
+        #dropdown-arrow { transition: transform 0.3s ease-in-out; }
+        #dropdown-arrow.rotate-180 { transform: rotate(180deg); }
+        .tone-btn { @apply px-4 py-2 text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500; }
+        .tone-btn.selected { @apply bg-pink-600 text-white; }
+        .tone-btn:not(.selected) { @apply bg-gray-600 hover:bg-gray-500; }
+        .history-group-title { @apply px-3 mt-4 mb-2 text-xs font-semibold uppercase tracking-wider; }
+        .light-mode .history-group-title { @apply text-gray-500; }
+        .chat-history-item { @apply flex items-center justify-between p-2 rounded-lg cursor-pointer; }
+        .chat-history-item.active { @apply bg-pink-600/30; }
+        .light-mode .chat-history-item.active { @apply bg-indigo-200; }
+        .delete-chat-btn { @apply p-1 rounded-md text-gray-400 hover:bg-red-500/50 hover:text-white; opacity: 0; transition: opacity 0.2s; }
+        .chat-history-item:hover .delete-chat-btn { opacity: 1; }
+        .ai-bubble-header { @apply flex justify-between items-center w-full; }
+        .ai-bubble-header .sender-name { @apply font-bold text-pink-400; }
+        .light-mode .ai-bubble-header .sender-name { @apply text-indigo-600; }
+        .tts-btn { @apply p-1 rounded-md text-gray-400 hover:bg-gray-700/50 hover:text-white; }
+        #mic-btn.is-recording { color: #ec4899; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        #main-content > header { background-color: var(--main-bg); }
+        .light-mode #main-content > header { @apply bg-white/70; }
+
+        /* --- Emotion AI View & Typing Indicator Styles --- */
+        main.emotion-active-layout { @apply flex-row items-start gap-4; }
+        main.emotion-active-layout #emotion-view-container { @apply flex-shrink-0 w-full max-w-md; }
+        main.emotion-active-layout #chat-view { @apply flex-grow h-full; }
+
+        #emotion-view-container { @apply flex-grow flex-col justify-center items-center text-center p-0; }
+        #emotion-webcam {
+            width: 100%;
+            height: auto;
+            border-radius: 1rem;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            transform: scaleX(-1);
+        }
+        #emotion-overlay { @apply mt-4 text-lg font-semibold; }
+        .typing-indicator span {
+            height: 8px; width: 8px; margin: 0 2px;
+            background-color: #9ca3af; border-radius: 50%;
+            display: inline-block; animation: typing-bounce 1.4s infinite ease-in-out both;
+        }
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes typing-bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1.0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-900">
+
+    <div id="notification-container" class="fixed top-5 right-5 z-50 space-y-3 w-full max-w-xs"></div>
+    <div id="summary-modal-container"></div>
+
+    <aside id="sidebar" class="sidebar fixed top-0 left-0 z-40 w-64 h-screen border-r border-gray-700 flex flex-col">
+        <div class="p-4 flex items-center gap-3">
+            <img src="/static/bot.png" alt="Vexel AI Logo" class="w-10 h-10 rounded-full">
+            <h1 class="text-2xl font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">Vexel AI</h1>
+        </div>
+        <nav class="p-2 mt-2 flex-grow overflow-y-auto">
+            <a href="#" id="nav-new-chat-btn" class="sidebar-link active">
+                <svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                New Chat
+            </a>
+            <div class="mt-4 pt-4 border-t border-gray-700">
+                <div class="flex justify-between items-center px-3">
+                    <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">History</h2>
+                    <button id="clear-history-btn" class="text-xs text-gray-400 hover:text-white hover:bg-red-500/50 px-2 py-1 rounded-md" title="Clear all history">Clear All</button>
+                </div>
+                <div class="px-2 pt-2">
+                    <input type="search" id="history-search-input" placeholder="Search history..." class="w-full px-2 py-1.5 bg-gray-600 border border-gray-500 rounded-md text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-pink-500">
+                </div>
+                <div id="chat-history-list" class="mt-2 space-y-1">
+                    <!-- Chat history items will be inserted here by JavaScript -->
+                </div>
+            </div>
+        </nav>
+        <div class="p-2 border-t border-gray-700">
+             <a href="#" id="nav-settings-btn" class="sidebar-link">
+                <svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                Customize
+            </a>
+        </div>
+    </aside>
+
+    <div id="main-content" class="lg:ml-64 transition-all duration-300 ease-in-out h-screen flex flex-col">
+        <header class="sticky top-0 z-30 p-4 bg-gray-900/70 backdrop-blur-lg flex items-center justify-between flex-shrink-0 border-b border-gray-700">
+            <div class="flex items-center">
+                <button id="sidebar-toggle" class="p-2 rounded-md text-gray-300 hover:bg-gray-700 mr-4 lg:hidden">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                </button>
+                <div id="model-switcher-container" class="relative">
+                    <button id="model-selector-btn" class="flex items-center justify-between w-56 px-4 py-2 bg-gray-800 rounded-lg text-white font-semibold focus:outline-none focus:ring-2 focus:ring-pink-500">
+                        <span id="selected-model-name" class="truncate">Image Generator</span>
+                        <svg class="w-5 h-5 ml-2 text-gray-400" id="dropdown-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div id="model-dropdown" class="absolute top-full mt-1 w-56 bg-gray-800 rounded-lg shadow-lg z-10 hidden border border-gray-700">
+                        <a href="#" class="model-option block px-4 py-3 text-gray-300 hover:bg-pink-600/50 hover:text-white rounded-t-lg" data-model="image">Image Generator</a>
+                        <a href="#" class="model-option block px-4 py-3 text-gray-300 hover:bg-pink-600/50 hover:text-white" data-model="chat">Chat Assistant</a>
+                        <a href="#" class="model-option block px-4 py-3 text-gray-300 hover:bg-pink-600/50 hover:text-white rounded-b-lg" data-model="emotion">Emotion AI</a>
+                    </div>
+                </div>
+            </div>
+
+            <div id="user-profile-header" class="flex items-center space-x-3 text-white">
+                <!-- This will be populated by JavaScript with user info and logout button -->
+            </div>
+
+            <div class="flex items-center space-x-2">
+                <button id="export-chat-btn" class="p-2 rounded-full text-blue-400 hover:bg-gray-700" title="Export Conversation">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                </button>
+                <div id="conversation-summary-container" class="relative">
+                    <button id="conversation-summary-btn" class="p-2 rounded-full text-yellow-400 hover:bg-gray-700" title="Summarize Conversation">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1.017a7.002 7.002 0 016.983 6.983h1.017a1 1 0 011 1v2a1 1 0 01-1 1h-1.017a7.002 7.002 0 01-6.983 6.983v1.017a1 1 0 01-1 1h-2a1 1 0 01-1-1v-1.017a7.002 7.002 0 01-6.983-6.983H1a1 1 0 01-1-1v-2a1 1 0 011-1h1.017A7.002 7.002 0 018.017 4.017V3a1 1 0 011-1h2zm-2 14a5 5 0 100-10 5 5 0 000 10z"></path></svg>
+                    </button>
+                    <div id="conversation-summary-dropdown" class="hidden absolute top-full right-0 mt-2 w-56 bg-gray-800 rounded-lg shadow-lg z-10 border border-gray-700">
+                        <a href="#" id="summarize-all-btn" class="block px-4 py-3 text-gray-300 hover:bg-pink-600/50 hover:text-white rounded-lg">Summary Chat</a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="flex-grow p-4 md:p-6 overflow-y-hidden flex flex-col">
+            <div id="emotion-view-container" class="page-content hidden">
+                <div class="relative">
+                     <video id="emotion-webcam" autoplay muted playsinline></video>
+                </div>
+                <p id="emotion-overlay" class="text-gray-300">Camera is off.</p>
+                <div id="camera-controls" class="mt-4 flex gap-4">
+                    <button id="start-cam-btn" class="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors">Start Camera</button>
+                    <button id="stop-cam-btn" class="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors">Stop Camera</button>
+                </div>
+            </div>
+
+            <div id="chat-view" class="page-content flex-grow overflow-y-hidden flex flex-col chat-wrapper">
+                <div id="chat-container" class="flex-grow overflow-y-auto pr-2"></div>
+                <div id="input-bar" class="mt-4 flex-shrink-0">
+                    <div id="file-attachment-preview" class="mb-2"></div>
+                    <form id="prompt-form" class="relative">
+                        <textarea id="prompt-input" class="w-full p-4 pr-40 bg-gray-800 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 resize-none" placeholder="Type your prompt here, or use the microphone..." rows="1"></textarea>
+                        <div class="absolute bottom-3 right-3 flex items-center space-x-2">
+                            <button type="button" id="mic-btn" class="p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white cursor-pointer transition-colors" title="Voice Input">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-14 0m7 10v4m0 0a2 2 0 01-2-2v-2m2 2a2 2 0 002-2v-2M3 11a9 9 0 0118 0"></path></svg>
+                            </button>
+                            <label for="file-input" id="file-input-label" class="p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white cursor-pointer transition-colors" title="Attach File">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
+                            </label>
+                            <input type="file" id="file-input" class="hidden" accept=".txt,.js,.py,.html,.css,.md,image/*">
+                            <button type="submit" class="p-2 rounded-full bg-purple-600 text-white hover:bg-purple-700 transition-colors" title="Send">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path></svg>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="settings-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+        <div class="p-8 rounded-2xl shadow-2xl w-full max-w-4xl m-4 relative glassmorphism max-h-[90vh] overflow-y-auto">
+            <h2 class="text-2xl font-bold text-center mb-6">Customize Vexel AI</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <!-- Profile & AI Settings -->
+                <div class="space-y-6">
+                    <div>
+                        <h3 class="block mb-3 font-medium text-lg">User Profile</h3>
+                        <div class="space-y-4">
+                            <div>
+                               <label for="display-name-input" class="block mb-2 font-medium text-sm">Display Name</label>
+                               <input type="text" id="display-name-input" class="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500" placeholder="Enter your name">
+                            </div>
+                            <div>
+                               <label for="avatar-url-input" class="block mb-2 font-medium text-sm">Avatar URL</label>
+                               <input type="url" id="avatar-url-input" class="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500" placeholder="https://example.com/avatar.png">
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block mb-3 font-medium text-lg">Custom AI</label>
+                        <div id="tone-btn-group" class="grid grid-cols-2 gap-2">
+                            <button class="tone-btn" data-tone="default">Default</button>
+                            <button class="tone-btn" data-tone="formal">Formal</button>
+                            <button class="tone-btn" data-tone="fun">Fun</button>
+                            <button class="tone-btn" data-tone="custom">Custom</button>
+                        </div>
+                        <textarea id="custom-tone-input" class="hidden w-full mt-2 bg-gray-700 border border-gray-600 rounded-md p-2 text-sm focus:outline-none focus:ring-1 focus:ring-pink-500 h-24 resize-none" placeholder="e.g., You are a sarcastic pirate..."></textarea>
+                    </div>
+                </div>
+
+                <!-- Appearance Settings -->
+                <div class="space-y-4">
+                     <h3 class="block mb-3 font-medium text-lg">Appearance</h3>
+                     <div class="space-y-4">
+                         <div>
+                             <label for="font-selector" class="block mb-2 font-medium text-sm">Font Style</label>
+                             <select id="font-selector" class="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"></select>
+                         </div>
+                         <div>
+                             <label for="font-size-slider" class="block mb-2 font-medium text-sm">Font Size: <span id="font-size-value">16px</span></label>
+                             <input type="range" id="font-size-slider" min="12" max="20" step="1" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                         </div>
+                         <div>
+                            <label class="block mb-3 font-medium text-sm">Theme</label>
+                            <div id="theme-btn-group" class="grid grid-cols-2 gap-2">
+                                <button class="tone-btn" data-theme="dark">Dark Mode</button>
+                                <button class="tone-btn" data-theme="light">Light Mode</button>
+                            </div>
+                        </div>
+                     </div>
+                </div>
+
+                <!-- Color Settings -->
+                <div class="space-y-4">
+                    <h3 class="block mb-3 font-medium text-lg">Color Palette</h3>
+                     <div class="grid grid-cols-2 gap-4">
+                         <div>
+                             <label class="block mb-2 font-medium text-sm">Your Text</label>
+                             <input type="color" id="user-text-color" class="w-full h-10 p-1 bg-gray-700 rounded-lg cursor-pointer">
+                         </div>
+                         <div>
+                             <label class="block mb-2 font-medium text-sm">AI Text</label>
+                             <input type="color" id="ai-text-color" class="w-full h-10 p-1 bg-gray-700 rounded-lg cursor-pointer">
+                         </div>
+                         <div>
+                             <label class="block mb-2 font-medium text-sm">Your Bubbles</label>
+                             <input type="color" id="user-bubble-color" class="w-full h-10 p-1 bg-gray-700 rounded-lg cursor-pointer">
+                         </div>
+                         <div>
+                             <label class="block mb-2 font-medium text-sm">AI Bubbles</label>
+                             <input type="color" id="ai-bubble-color" class="w-full h-10 p-1 bg-gray-700 rounded-lg cursor-pointer">
+                         </div>
+                         <div class="col-span-2">
+                             <label class="block mb-2 font-medium text-sm">Sidebar & Input BG</label>
+                             <input type="color" id="sidebar-input-color" class="w-full h-10 p-1 bg-gray-700 rounded-lg cursor-pointer">
+                         </div>
+                         <div class="col-span-2">
+                            <label class="block mb-2 font-medium text-sm">Background Gradient</label>
+                            <div class="grid grid-cols-4 gap-2">
+                                <input type="color" id="bg-color-1" class="w-full h-10 p-1 bg-gray-700 rounded-lg cursor-pointer">
+                                <input type="color" id="bg-color-2" class="w-full h-10 p-1 bg-gray-700 rounded-lg cursor-pointer">
+                                <input type="color" id="bg-color-3" class="w-full h-10 p-1 bg-gray-700 rounded-lg cursor-pointer">
+                                <input type="color" id="bg-color-4" class="w-full h-10 p-1 bg-gray-700 rounded-lg cursor-pointer">
+                            </div>
+                        </div>
+                     </div>
+                </div>
+            </div>
+             <div class="mt-8 flex justify-end gap-4">
+                <button id="reset-settings-btn" class="px-6 py-2 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-500 transition-colors">Reset</button>
+                <button id="save-settings-btn" class="px-6 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition-colors">Save & Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // --- State Management ---
+        let currentModel = 'image';
+        let attachedFileContent = null;
+        let attachedFileName = null;
+        let isFirstMessageInSession = true;
+        let currentChatId = null;
+        let detectedEmotion = 'neutral';
+        let lastNotifiedEmotion = 'neutral';
+        let isAwaitingResponse = false;
+        let emotionInterval = null;
+        let webcamStream = null;
+
+        // --- DOM Elements ---
+        const getEl = (id) => document.getElementById(id);
+        const mainContent = getEl('main-content');
+        const mainElement = mainContent.querySelector('main');
+        const sidebar = getEl('sidebar');
+        const sidebarToggle = getEl('sidebar-toggle');
+        const chatContainer = getEl('chat-container');
+        const promptForm = getEl('prompt-form');
+        const promptInput = getEl('prompt-input');
+        const modelSelectorBtn = getEl('model-selector-btn');
+        const modelDropdown = getEl('model-dropdown');
+        const dropdownArrow = getEl('dropdown-arrow');
+        const selectedModelName = getEl('selected-model-name');
+        const modelOptions = document.querySelectorAll('.model-option');
+        const navNewChatBtn = getEl('nav-new-chat-btn');
+        const fileInput = getEl('file-input');
+        const fileInputLabel = getEl('file-input-label');
+        const fileAttachmentPreview = getEl('file-attachment-preview');
+        const summaryModalContainer = getEl('summary-modal-container');
+        const conversationSummaryBtn = getEl('conversation-summary-btn');
+        const conversationSummaryDropdown = getEl('conversation-summary-dropdown');
+        const summarizeAllBtn = getEl('summarize-all-btn');
+        const chatHistoryList = getEl('chat-history-list');
+        const micBtn = getEl('mic-btn');
+        const clearHistoryBtn = getEl('clear-history-btn');
+        const exportChatBtn = getEl('export-chat-btn');
+
+        // Settings Modal Elements
+        const settingsModal = getEl('settings-modal');
+        const navSettingsBtn = getEl('nav-settings-btn');
+        const saveSettingsBtn = getEl('save-settings-btn');
+        const resetSettingsBtn = getEl('reset-settings-btn');
+        const fontSelector = getEl('font-selector');
+        const fontSizeSlider = getEl('font-size-slider');
+        const fontSizeValue = getEl('font-size-value');
+        const displayNameInput = getEl('display-name-input');
+        const avatarUrlInput = getEl('avatar-url-input');
+        const userTextColorInput = getEl('user-text-color');
+        const aiTextColorInput = getEl('ai-text-color');
+        const userBubbleColorInput = getEl('user-bubble-color');
+        const aiBubbleColorInput = getEl('ai-bubble-color');
+        const sidebarInputColorInput = getEl('sidebar-input-color');
+        const bgColor1Input = getEl('bg-color-1');
+        const bgColor2Input = getEl('bg-color-2');
+        const bgColor3Input = getEl('bg-color-3');
+        const bgColor4Input = getEl('bg-color-4');
+        const toneBtnGroup = getEl('tone-btn-group');
+        const customToneInput = getEl('custom-tone-input');
+        const themeBtnGroup = getEl('theme-btn-group');
+        const userProfileHeader = getEl('user-profile-header');
+
+        // Emotion AI Elements
+        const emotionViewContainer = getEl('emotion-view-container');
+        const emotionWebcam = getEl('emotion-webcam');
+        const emotionOverlay = getEl('emotion-overlay');
+        const chatView = getEl('chat-view');
+        const cameraControls = getEl('camera-controls');
+        const startCamBtn = getEl('start-cam-btn');
+        const stopCamBtn = getEl('stop-cam-btn');
+        const historySearchInput = getEl('history-search-input');
+
+        // --- Web Speech API Initialization ---
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition = null;
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.lang = 'en-US';
+            recognition.interimResults = false;
+        } else {
+            if(micBtn) micBtn.style.display = 'none';
+        }
+
+        // --- Constants ---
+        const GOOGLE_FONTS = ["Inter", "Roboto", "Lato", "Montserrat", "Oswald", "Source Code Pro", "Nunito"];
+        const DEFAULT_SETTINGS = {
+            font: 'Inter', fontSize: '16',
+            displayName: 'User', avatarUrl: '',
+            userTextColor: '#ffffff', aiTextColor: '#e5e7eb',
+            sidebarInputBg: '#1f2937', userBubble: 'transparent', aiBubble: 'transparent',
+            bg1: '#4a0e69', bg2: '#d946ef', bg3: '#1a1a2e', bg4: '#ec4899',
+            tone: 'default', customTone: '', theme: 'dark'
+        };
+
+        // --- Initialization ---
+        async function initialize() {
+            populateFontSelector();
+            await loadSettings(); // Load settings from backend
+            await loadChatHistory();
+            updateViewForModel(); // Initial view setup
+            setupEventListeners();
+            loadFaceApiModels();
+        }
+
+        function setupEventListeners() {
+            sidebarToggle.addEventListener('click', toggleSidebar);
+            document.addEventListener('click', handleGlobalClick);
+            modelSelectorBtn.addEventListener('click', toggleModelDropdown);
+            modelOptions.forEach(option => option.addEventListener('click', handleModelSwitch));
+            navNewChatBtn.addEventListener('click', handleNewChatClick);
+            promptForm.addEventListener('submit', handleFormSubmit);
+            promptInput.addEventListener('input', autoResizeTextarea);
+            promptInput.addEventListener('keydown', handleEnterKey);
+            fileInput.addEventListener('change', handleFileAttachment);
+            conversationSummaryBtn.addEventListener('click', (e) => { e.stopPropagation(); conversationSummaryDropdown.classList.toggle('hidden'); });
+            summarizeAllBtn.addEventListener('click', handleConversationSummary);
+            navSettingsBtn.addEventListener('click', () => settingsModal.classList.remove('hidden'));
+            saveSettingsBtn.addEventListener('click', saveAndCloseSettings);
+            resetSettingsBtn.addEventListener('click', resetSettingsToDefault);
+            toneBtnGroup.addEventListener('click', handleToneButtonClick);
+            themeBtnGroup.addEventListener('click', handleThemeButtonClick);
+            chatHistoryList.addEventListener('click', handleHistoryItemClick);
+            historySearchInput.addEventListener('input', handleHistorySearch);
+            chatContainer.addEventListener('click', handleChatContainerClick);
+            clearHistoryBtn.addEventListener('click', handleClearHistory);
+            exportChatBtn.addEventListener('click', handleExportChat);
+            fontSizeSlider.addEventListener('input', (e) => fontSizeValue.textContent = `${e.target.value}px`);
+            startCamBtn.addEventListener('click', startWebcam);
+            stopCamBtn.addEventListener('click', stopWebcam);
+            if (recognition) {
+                micBtn.addEventListener('click', toggleVoiceRecognition);
+                recognition.onresult = handleVoiceResult;
+                recognition.onend = () => micBtn.classList.remove('is-recording');
+            }
+        }
+
+        // --- CHAT HISTORY FUNCTIONS ---
+        async function loadChatHistory() {
+            try {
+                const response = await fetchWithAuth('/history');
+                const groupedHistory = await response.json();
+                chatHistoryList.innerHTML = '';
+                const groupOrder = ["Today", "Yesterday"];
+                const sortedGroups = Object.keys(groupedHistory).sort((a, b) => {
+                    const aIndex = groupOrder.indexOf(a);
+                    const bIndex = groupOrder.indexOf(b);
+                    if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+                    if (aIndex !== -1) return -1;
+                    if (bIndex !== -1) return 1;
+                    return new Date(b) - new Date(a);
+                });
+
+                for (const groupName of sortedGroups) {
+                    const groupTitle = document.createElement('h3');
+                    groupTitle.className = 'history-group-title';
+                    groupTitle.textContent = groupName;
+                    chatHistoryList.appendChild(groupTitle);
+
+                    groupedHistory[groupName].forEach(chat => {
+                        const chatItem = document.createElement('div');
+                        chatItem.className = 'chat-history-item text-gray-300 text-sm';
+                        chatItem.dataset.chatId = chat.id;
+                        chatItem.innerHTML = `
+                            <span class="truncate flex-grow">${chat.title}</span>
+                            <button class="delete-chat-btn">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        `;
+                        chatHistoryList.appendChild(chatItem);
+                    });
+                }
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        function handleHistorySearch(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const allItems = chatHistoryList.querySelectorAll('.chat-history-item');
+            const allTitles = chatHistoryList.querySelectorAll('.history-group-title');
+
+            allItems.forEach(item => {
+                const title = item.querySelector('span').textContent.toLowerCase();
+                const isVisible = title.includes(searchTerm);
+                item.style.display = isVisible ? 'flex' : 'none';
+            });
+
+            allTitles.forEach(title => {
+                let nextElement = title.nextElementSibling;
+                let groupHasVisibleItems = false;
+                while(nextElement && nextElement.classList.contains('chat-history-item')) {
+                    if (nextElement.style.display !== 'none') {
+                        groupHasVisibleItems = true;
+                        break;
+                    }
+                    nextElement = nextElement.nextElementSibling;
+                }
+                title.style.display = groupHasVisibleItems ? 'block' : 'none';
+            });
+        }
+
+        async function handleHistoryItemClick(e) {
+            const chatItem = e.target.closest('.chat-history-item');
+            if (!chatItem) return;
+            const chatId = chatItem.dataset.chatId;
+            if (e.target.closest('.delete-chat-btn')) {
+                if (confirm('Are you sure you want to delete this chat?')) {
+                    try {
+                        await fetchWithAuth(`/chat/${chatId}`, { method: 'DELETE' });
+                        chatItem.remove();
+                        if (currentChatId === chatId) startNewChat();
+                        showNotification('Chat deleted.', 'info');
+                    } catch (error) {
+                        showNotification(error.message, 'error');
+                    }
+                }
+                return;
+            }
+            loadChat(chatId);
+        }
+
+        async function loadChat(chatId) {
+            try {
+                const response = await fetchWithAuth(`/chat/${chatId}`);
+                const messages = await response.json();
+                chatContainer.innerHTML = '';
+                messages.forEach(msg => addMessageToChat(msg));
+                currentChatId = chatId;
+                isFirstMessageInSession = false;
+                document.querySelectorAll('.sidebar-link, .chat-history-item').forEach(el => el.classList.remove('active'));
+                const historyItem = document.querySelector(`.chat-history-item[data-chat-id="${chatId}"]`);
+                if(historyItem) historyItem.classList.add('active');
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        async function handleClearHistory() {
+            if (confirm('Are you sure you want to delete all chat history? This cannot be undone.')) {
+                try {
+                    await fetchWithAuth('/history/clear', { method: 'POST' });
+                    chatHistoryList.innerHTML = '';
+                    startNewChat();
+                    showNotification('All chat history has been cleared.', 'success');
+                } catch (error) {
+                    showNotification(error.message, 'error');
+                }
+            }
+        }
+
+        // --- VOICE, TTS, and EXPORT FUNCTIONS ---
+        function handleChatContainerClick(e) {
+            const ttsButton = e.target.closest('.tts-btn');
+            if (ttsButton) {
+                const messageBubble = ttsButton.closest('.ai-bubble');
+                const mainContent = messageBubble.querySelector('.ai-bubble-header + *');
+                const textToSpeak = mainContent ? mainContent.innerText : messageBubble.innerText.replace("Vexel AI", "").trim();
+                speakText(textToSpeak);
+            }
+        }
+
+        function speakText(text) {
+            if ('speechSynthesis' in window) {
+                speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                speechSynthesis.speak(utterance);
+            } else {
+                showNotification('Text-to-speech is not supported in your browser.', 'error');
+            }
+        }
+
+        function toggleVoiceRecognition() {
+            if (!recognition) return;
+            if (micBtn.classList.contains('is-recording')) {
+                recognition.stop();
+            } else {
+                try {
+                    recognition.start();
+                    micBtn.classList.add('is-recording');
+                } catch (error) {
+                    showNotification("Voice recognition error. It might already be active.", "error");
+                }
+            }
+        }
+
+        function handleVoiceResult(event) {
+            const transcript = event.results[0][0].transcript;
+            promptInput.value = transcript;
+            autoResizeTextarea();
+        }
+
+        function handleExportChat() {
+            let chatText = '';
+            const messages = chatContainer.querySelectorAll('.chat-bubble');
+            if (messages.length === 0 || (isFirstMessageInSession && chatContainer.innerText.includes("Hello! I'm Vexel AI"))) {
+                showNotification('Nothing to export.', 'info');
+                return;
+            }
+            messages.forEach(msg => {
+                const sender = msg.classList.contains('user-bubble') ? 'User' : 'Vexel AI';
+                const content = msg.innerText.replace("Vexel AI", "").trim();
+                chatText += `${sender}:\n${content}\n\n`;
+            });
+
+            const blob = new Blob([chatText], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Vexel-AI-Chat-${new Date().toISOString()}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // --- EMOTION RECOGNITION FUNCTIONS ---
+        async function loadFaceApiModels() {
+            try {
+                await Promise.all([
+                    faceapi.nets.tinyFaceDetector.loadFromUri('/static/models'),
+                    faceapi.nets.faceExpressionNet.loadFromUri('/static/models')
+                ]);
+            } catch (error) {
+                console.error("Failed to load face-api models:", error);
+                showNotification("Could not load AI models for emotion detection.", "error");
+            }
+        }
+
+        async function startWebcam() {
+            if (webcamStream) return;
+             try {
+                webcamStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                emotionWebcam.srcObject = webcamStream;
+                emotionOverlay.textContent = 'Initializing detection...';
+                emotionWebcam.onloadedmetadata = () => {
+                    startEmotionDetection();
+                }
+            } catch (err) {
+                emotionOverlay.textContent = "Webcam access denied. Please allow camera permissions.";
+                showNotification("Webcam access is required for this mode.", "error");
+            }
+        }
+
+        function stopWebcam() {
+            stopEmotionDetection();
+            if (webcamStream) {
+                webcamStream.getTracks().forEach(track => track.stop());
+                webcamStream = null;
+                emotionWebcam.srcObject = null;
+                emotionOverlay.textContent = 'Camera is off.';
+            }
+        }
+
+        function startEmotionDetection() {
+            if (emotionInterval) clearInterval(emotionInterval);
+            if (!webcamStream) return;
+            emotionInterval = setInterval(async () => {
+                const detections = await faceapi.detectAllFaces(emotionWebcam, new faceapi.TinyFaceDetectorOptions()).withFaceExpressions();
+                if (detections.length > 0) {
+                    const expressions = detections[0].expressions;
+                    const primaryEmotion = Object.keys(expressions).reduce((a, b) => expressions[a] > expressions[b] ? a : b);
+                    detectedEmotion = primaryEmotion;
+                    emotionOverlay.textContent = `Current Emotion: ${primaryEmotion}`;
+
+                    if (primaryEmotion !== lastNotifiedEmotion && primaryEmotion !== 'neutral' && !isAwaitingResponse) {
+                        lastNotifiedEmotion = primaryEmotion;
+                        sendEmotionUpdate(primaryEmotion);
+                    }
+                } else {
+                    emotionOverlay.textContent = 'Point camera at face';
+                    detectedEmotion = 'neutral';
+                }
+            }, 1000);
+        }
+
+        function stopEmotionDetection() {
+            if (emotionInterval) clearInterval(emotionInterval);
+            emotionInterval = null;
+        }
+
+        async function sendEmotionUpdate(emotion) {
+            const prompt = `(System: The user's expression just changed to ${emotion}. Comment on this observation with a quote or a brief, insightful remark.)`;
+            const loaderBubble = addMessageToChat({ content: '', sender: 'ai', type: 'loader' });
+
+            isAwaitingResponse = true;
+            try {
+                const response = await fetchWithAuth('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: prompt, chat_id: currentChatId, emotion: emotion })
+                });
+                const data = await response.json();
+                loaderBubble.remove();
+                addMessageToChat({ content: data.solution, sender: 'ai', type: 'text' });
+            } catch (error) {
+                loaderBubble.remove();
+                addMessageToChat({ content: `Error: ${error.message}`, sender: 'ai', type: 'text' });
+            } finally {
+                isAwaitingResponse = false;
+            }
+        }
+
+        // --- UI & Customization ---
+        async function loadSettings() {
+            try {
+                const response = await fetchWithAuth('/settings');
+                const settings = await response.json();
+                applySettings(settings);
+                updateSettingsUI(settings);
+            } catch (error) {
+                showNotification("Could not load user settings. Using defaults.", "error");
+                applySettings(DEFAULT_SETTINGS);
+                updateSettingsUI(DEFAULT_SETTINGS);
+            }
+        }
+
+        function applySettings(settings) {
+            document.body.classList.toggle('light-mode', settings.theme === 'light');
+
+            const fontName = settings.font;
+            if (GOOGLE_FONTS.includes(fontName)) {
+                const existingLink = document.querySelector(`link[href*="family=${fontName.replace(/ /g, '+')}"]`);
+                if (!existingLink) {
+                    const fontLink = document.createElement('link');
+                    fontLink.href = `https://fonts.googleapis.com/css2?family=${fontName.replace(/ /g, '+')}:wght@400;700&display=swap`;
+                    fontLink.rel = 'stylesheet';
+                    document.head.appendChild(fontLink);
+                }
+                document.documentElement.style.setProperty('--font-family', `'${fontName}', sans-serif`);
+            }
+
+            document.documentElement.style.setProperty('--font-size', `${settings.fontSize}px`);
+            document.documentElement.style.setProperty('--user-bubble-text', settings.userTextColor);
+            document.documentElement.style.setProperty('--ai-bubble-text', settings.aiTextColor);
+            document.documentElement.style.setProperty('--sidebar-bg', settings.sidebarInputBg);
+            document.documentElement.style.setProperty('--input-bg', settings.sidebarInputBg);
+            document.documentElement.style.setProperty('--user-bubble-bg', settings.userBubble === 'transparent' ? 'rgba(255, 255, 255, 0.1)' : hexToRgba(settings.userBubble, 0.7));
+            document.documentElement.style.setProperty('--ai-bubble-bg', settings.aiBubble === 'transparent' ? 'rgba(255, 255, 255, 0.1)' : hexToRgba(settings.aiBubble, 0.7));
+            document.documentElement.style.setProperty('--bg-gradient-start', settings.bg1);
+            document.documentElement.style.setProperty('--bg-gradient-mid1', settings.bg2);
+            document.documentElement.style.setProperty('--bg-gradient-mid2', settings.bg3);
+            document.documentElement.style.setProperty('--bg-gradient-end', settings.bg4);
+
+            updateUserProfileHeader(settings);
+        }
+
+        function updateUserProfileHeader(settings) {
+            const avatarHTML = `<img id="user-avatar" src="${settings.avatarUrl || '/static/bot.png'}" alt="User Avatar" class="w-8 h-8 rounded-full border-2 border-pink-500/50 object-cover" onerror="this.onerror=null; this.src='/static/bot.png';">`;
+            const nameHTML = `<span>Welcome, <strong>${settings.displayName || 'User'}</strong>!</span>`;
+            const logoutHTML = `<a href="/logout" class="px-3 py-1.5 text-sm bg-pink-600 rounded-lg hover:bg-pink-700 transition-colors">Logout</a>`;
+            userProfileHeader.innerHTML = `${avatarHTML} ${nameHTML} ${logoutHTML}`;
+        }
+
+        function updateSettingsUI(settings) {
+            displayNameInput.value = settings.displayName;
+            avatarUrlInput.value = settings.avatarUrl;
+            fontSelector.value = settings.font;
+            fontSizeSlider.value = settings.fontSize;
+            fontSizeValue.textContent = `${settings.fontSize}px`;
+            userTextColorInput.value = settings.userTextColor;
+            aiTextColorInput.value = settings.aiTextColor;
+            userBubbleColorInput.value = settings.userBubble === 'transparent' ? '#ffffff' : settings.userBubble;
+            aiBubbleColorInput.value = settings.aiBubble === 'transparent' ? '#ffffff' : settings.aiBubble;
+            sidebarInputColorInput.value = settings.sidebarInputBg;
+            bgColor1Input.value = settings.bg1;
+            bgColor2Input.value = settings.bg2;
+            bgColor3Input.value = settings.bg3;
+            bgColor4Input.value = settings.bg4;
+            toneBtnGroup.querySelectorAll('.tone-btn').forEach(btn => {
+                btn.classList.toggle('selected', btn.dataset.tone === settings.tone);
+            });
+            customToneInput.value = settings.customTone;
+            customToneInput.classList.toggle('hidden', settings.tone !== 'custom');
+            themeBtnGroup.querySelectorAll('.tone-btn').forEach(btn => {
+                btn.classList.toggle('selected', btn.dataset.theme === settings.theme);
+            });
+        }
+
+        async function saveAndCloseSettings() {
+            const currentSettings = {
+                displayName: displayNameInput.value,
+                avatarUrl: avatarUrlInput.value,
+                font: fontSelector.value,
+                fontSize: fontSizeSlider.value,
+                userTextColor: userTextColorInput.value,
+                aiTextColor: aiTextColorInput.value,
+                sidebarInputBg: sidebarInputColorInput.value,
+                userBubble: userBubbleColorInput.value,
+                aiBubble: aiBubbleColorInput.value,
+                bg1: bgColor1Input.value,
+                bg2: bgColor2Input.value,
+                bg3: bgColor3Input.value,
+                bg4: bgColor4Input.value,
+                tone: toneBtnGroup.querySelector('.selected')?.dataset.tone || 'default',
+                customTone: customToneInput.value,
+                theme: themeBtnGroup.querySelector('.selected')?.dataset.theme || 'dark'
+            };
+
+            try {
+                await fetchWithAuth('/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(currentSettings)
+                });
+                applySettings(currentSettings); // Apply immediately for responsiveness
+                settingsModal.classList.add('hidden');
+                showNotification('Settings saved!', 'success');
+            } catch (error) {
+                showNotification(`Error saving settings: ${error.message}`, 'error');
+            }
+        }
+
+        function resetSettingsToDefault() {
+            if (confirm("Are you sure you want to reset all settings to their default values? You will need to click 'Save & Close' to make this permanent.")) {
+                updateSettingsUI(DEFAULT_SETTINGS);
+                applySettings(DEFAULT_SETTINGS);
+            }
+        }
+
+        function populateFontSelector() {
+            GOOGLE_FONTS.forEach(font => {
+                const option = document.createElement('option');
+                option.value = font;
+                option.textContent = font;
+                fontSelector.appendChild(option);
+            });
+        }
+        function hexToRgba(hex, alpha) {
+            if (hex === 'transparent') return 'rgba(255, 255, 255, 0.1)';
+            if (!hex || hex.length < 7) { return `rgba(255, 255, 255, ${alpha})`; }
+            const r = parseInt(hex.slice(1, 3), 16);
+            const g = parseInt(hex.slice(3, 5), 16);
+            const b = parseInt(hex.slice(5, 7), 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+        function toggleSidebar() { if (window.innerWidth < 1024) { sidebar.classList.toggle('-translate-x-full'); } }
+        function handleGlobalClick(e) {
+            if (!sidebar.contains(e.target) && !sidebarToggle.contains(e.target) && window.innerWidth < 1024) { sidebar.classList.add('-translate-x-full'); }
+            if (!modelSelectorBtn.contains(e.target) && !modelDropdown.contains(e.target)) { modelDropdown.classList.add('hidden'); dropdownArrow.classList.remove('rotate-180'); }
+            if (!conversationSummaryBtn.contains(e.target) && !conversationSummaryDropdown.contains(e.target)) { conversationSummaryDropdown.classList.add('hidden'); }
+        }
+        function toggleModelDropdown() { modelDropdown.classList.toggle('hidden'); dropdownArrow.classList.toggle('rotate-180'); }
+        function showNotification(message, type = 'info') {
+            const container = getEl('notification-container');
+            const notification = document.createElement('div');
+            const colors = { info: 'bg-blue-600', success: 'bg-green-600', error: 'bg-red-600' };
+            notification.className = `p-4 rounded-lg text-white shadow-lg transform transition-all duration-300 ease-in-out translate-x-full opacity-0`;
+            notification.classList.add(colors[type] || colors.info);
+            notification.textContent = message;
+            container.appendChild(notification);
+            setTimeout(() => { notification.classList.remove('translate-x-full', 'opacity-0'); }, 10);
+            setTimeout(() => { notification.classList.add('opacity-0'); notification.addEventListener('transitionend', () => notification.remove()); }, 4000);
+        }
+        function autoResizeTextarea() { promptInput.style.height = 'auto'; promptInput.style.height = (promptInput.scrollHeight) + 'px'; }
+
+        // --- App Logic ---
+        function handleModelSwitch(e) {
+            e.preventDefault();
+            const newModel = e.target.dataset.model;
+            if (currentModel !== newModel) {
+                currentModel = newModel;
+                selectedModelName.textContent = e.target.textContent;
+                updateViewForModel();
+            }
+            modelDropdown.classList.add('hidden');
+            dropdownArrow.classList.remove('rotate-180');
+        }
+
+        function updateViewForModel() {
+            const isEmotion = currentModel === 'emotion';
+            mainElement.classList.toggle('emotion-active-layout', isEmotion);
+
+            emotionViewContainer.classList.toggle('hidden', !isEmotion);
+            chatView.classList.remove('hidden'); // Always show chat view now
+
+            if (isEmotion) {
+                cameraControls.classList.remove('hidden');
+                fileInputLabel.style.display = 'none';
+            } else {
+                stopWebcam();
+                cameraControls.classList.add('hidden');
+                fileInputLabel.style.display = currentModel === 'chat' ? 'block' : 'none';
+            }
+            startNewChat();
+        }
+
+        function handleNewChatClick(e) {
+            e.preventDefault();
+            startNewChat();
+            if (window.innerWidth < 1024) sidebar.classList.add('-translate-x-full');
+        }
+
+        function startNewChat() {
+            chatContainer.innerHTML = '';
+            currentChatId = `chat_${Date.now()}`;
+            isFirstMessageInSession = true;
+
+            if (currentModel === 'chat') {
+                addMessageToChat({ content: "Hello! I'm Vexel AI. How can I help you today?", sender: 'ai', type: 'text' });
+            } else if (currentModel === 'emotion') {
+                addMessageToChat({ content: "Emotion AI activated. Start your camera to begin. The AI will comment on detected emotions.", sender: 'system' });
+            } else if (currentModel === 'image') {
+                chatContainer.innerHTML = `<div class="text-center p-8 flex-grow flex flex-col justify-center items-center"><div><h1 class="text-5xl font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">Image Generation</h1><p class="text-gray-400 mt-2">Describe the image you want to create.</p></div></div>`;
+            }
+            clearAttachment();
+            document.querySelectorAll('.sidebar-link, .chat-history-item').forEach(el => el.classList.remove('active'));
+            navNewChatBtn.classList.add('active');
+        }
+
+        function addMessageToChat(message) {
+            const { content, sender, type, attachment } = message;
+            if(isFirstMessageInSession && sender === 'user'){
+                const initialMessage = chatContainer.querySelector('.text-center, .text-xs.italic');
+                if (initialMessage) initialMessage.parentElement.remove();
+            }
+            const bubbleWrapper = document.createElement('div');
+            const messageContent = document.createElement('div');
+            bubbleWrapper.className = `w-full flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
+
+            if (sender === 'system') {
+                bubbleWrapper.innerHTML = `<div class="text-center text-xs text-gray-400 italic w-full py-2">${content}</div>`;
+                chatContainer.appendChild(bubbleWrapper);
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+                return;
+            }
+
+            messageContent.className = `chat-bubble ${sender === 'user' ? 'user-bubble' : 'ai-bubble'}`;
+            let htmlContent = '';
+
+            if (attachment) {
+                htmlContent += `<img src="${attachment}" class="rounded-lg w-full max-w-xs mb-2">`;
+            }
+
+            if (sender === 'ai' && type === 'loader') {
+                 htmlContent += `<div class="ai-bubble-header"><span class="sender-name">Vexel AI</span></div><div class="flex items-center gap-2 text-sm text-gray-400"><span>Vexel AI is typing...</span><div class="typing-indicator"><span></span><span></span><span></span></div></div>`;
+            } else if (type === 'image') {
+                htmlContent += `<img src="${content}" class="rounded-lg w-full max-w-md">`;
+            } else {
+                if (sender === 'ai' && type === 'text') {
+                    const headerHTML = `<div class="ai-bubble-header"><span class="sender-name">Vexel AI</span><button class="tts-btn" title="Read aloud"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.858 15.858a5 5 0 01-2.828-7.072m9.9 9.9A9 9 0 013 12"></path></svg></button></div>`;
+                    htmlContent += headerHTML + marked.parse(content);
+                } else {
+                    htmlContent += content.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                }
+            }
+            messageContent.innerHTML = htmlContent;
+            bubbleWrapper.appendChild(messageContent);
+            chatContainer.appendChild(bubbleWrapper);
+            messageContent.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightElement(block);
+            });
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            return bubbleWrapper;
+        }
+
+        function handleFileAttachment(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (e) => {
+                attachedFileContent = e.target.result;
+                attachedFileName = file.name;
+                showAttachmentPreview(file.type);
+                showNotification(`Attached ${file.name}`, 'info');
+            };
+            reader.onerror = () => {
+                showNotification('Error reading file.', 'error');
+                clearAttachment();
+            };
+        }
+        function showAttachmentPreview(fileType) {
+            if (!attachedFileName) return;
+            let previewHTML = '';
+            if (fileType.startsWith('image/')) {
+                previewHTML = `<img src="${attachedFileContent}" class="max-h-20 rounded-md mr-2">`;
+            } else {
+                previewHTML = `<svg class="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>`;
+            }
+            fileAttachmentPreview.innerHTML = `<div class="flex items-center p-2 bg-gray-700 rounded-lg text-sm">${previewHTML}<span class="truncate">${attachedFileName}</span><button id="remove-attachment-btn" class="ml-auto p-1 text-gray-400 hover:text-white">&times;</button></div>`;
+            getEl('remove-attachment-btn').addEventListener('click', clearAttachment);
+        }
+        function clearAttachment() {
+            attachedFileContent = null;
+            attachedFileName = null;
+            fileInput.value = '';
+            fileAttachmentPreview.innerHTML = '';
+        }
+        function handleToneButtonClick(e) {
+            if (e.target.classList.contains('tone-btn')) {
+                const selectedTone = e.target.dataset.tone;
+                toneBtnGroup.querySelectorAll('.tone-btn').forEach(btn => {
+                    btn.classList.toggle('selected', btn.dataset.tone === selectedTone);
+                });
+                customToneInput.classList.toggle('hidden', selectedTone !== 'custom');
+            }
+        }
+        function handleThemeButtonClick(e) {
+            if (e.target.classList.contains('tone-btn')) {
+                const selectedTheme = e.target.dataset.theme;
+                themeBtnGroup.querySelectorAll('.tone-btn').forEach(btn => {
+                    btn.classList.toggle('selected', btn.dataset.theme === selectedTheme);
+                });
+            }
+        }
+        function handleEnterKey(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                promptForm.requestSubmit();
+            }
+        }
+
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+            const prompt = promptInput.value.trim();
+            if (!prompt && !attachedFileContent) return;
+
+            const userMessagePayload = { content: prompt, sender: 'user', type: 'text' };
+            if (attachedFileContent) {
+                userMessagePayload.attachment = attachedFileContent;
+            }
+            addMessageToChat(userMessagePayload);
+            const loaderBubble = addMessageToChat({ content: '', sender: 'ai', type: 'loader' });
+            promptInput.value = '';
+            autoResizeTextarea();
+
+            // --- MODIFIED SECTION: Image Generation Logic ---
+            if (currentModel === 'image') {
+                // IMPORTANT: Replace with your actual Google AI API key
+                const apiKey = "YOUR_GOOGLE_API_KEY"; 
+                const modelName = "imagen-3.0-generate-002";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:predict?key=${apiKey}`;
+
+                const payload = {
+                    "instances": [{ "prompt": prompt }],
+                    "parameters": { "sampleCount": 1 }
+                };
+
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        const errorMessage = errorData?.error?.message || `An HTTP error occurred: ${response.status}`;
+                        throw new Error(errorMessage);
+                    }
+
+                    const responseData = await response.json();
+                    const imageBase64 = responseData?.predictions?.[0]?.bytesBase64Encoded;
+
+                    loaderBubble.remove(); // Remove loader
+
+                    if (imageBase64) {
+                        const imageUrl = `data:image/png;base64,${imageBase64}`;
+                        addMessageToChat({ content: imageUrl, sender: 'ai', type: 'image' });
+
+                        if (isFirstMessageInSession) {
+                           // Logic to handle session state, no backend call needed here for history
+                        }
+                        isFirstMessageInSession = false;
+                    } else {
+                        throw new Error("The model did not return an image. It may have been blocked by safety filters.");
+                    }
+                } catch (error) {
+                    loaderBubble.remove();
+                    console.error('Image Generation Error:', error);
+                    addMessageToChat({ content: `Error: ${error.message}`, sender: 'ai', type: 'text' });
+                } finally {
+                    clearAttachment();
+                }
+                return; // Stop the function here for image generation
+            }
+
+            // --- Original Chat and Emotion AI Logic (Uses your backend) ---
+            const settings = await getSettingsFromUI();
+            const endpoint = '/chat';
+            const headers = { 'Content-Type': 'application/json' };
+            const body = JSON.stringify({
+                prompt: prompt,
+                tone: settings.tone === 'custom' ? settings.customTone : settings.tone,
+                file_content: attachedFileContent,
+                chat_id: currentChatId,
+                emotion: detectedEmotion
+            });
+
+            try {
+                const response = await fetchWithAuth(endpoint, { method: 'POST', headers: headers, body: body });
+                const data = await response.json();
+                loaderBubble.remove();
+
+                addMessageToChat({ content: data.solution, sender: 'ai', type: 'text' });
+
+                if (isFirstMessageInSession) {
+                    await loadChatHistory();
+                    const historyItem = document.querySelector(`.chat-history-item[data-chat-id="${currentChatId}"]`);
+                    if (historyItem) {
+                        document.querySelectorAll('.chat-history-item').forEach(i => i.classList.remove('active'));
+                        historyItem.classList.add('active');
+                    }
+                }
+                isFirstMessageInSession = false;
+            } catch (error) {
+                loaderBubble.remove();
+                addMessageToChat({ content: `Error: ${error.message}`, sender: 'ai', type: 'text' });
+            } finally {
+                clearAttachment();
+            }
+        }
+
+
+        async function getSettingsFromUI() {
+             return {
+                displayName: displayNameInput.value, avatarUrl: avatarUrlInput.value,
+                font: fontSelector.value, fontSize: fontSizeSlider.value,
+                userTextColor: userTextColorInput.value, aiTextColor: aiTextColorInput.value,
+                sidebarInputBg: sidebarInputColorInput.value, userBubble: userBubbleColorInput.value, aiBubble: aiBubbleColorInput.value,
+                bg1: bgColor1Input.value, bg2: bgColor2Input.value, bg3: bgColor3Input.value, bg4: bgColor4Input.value,
+                tone: toneBtnGroup.querySelector('.selected')?.dataset.tone || 'default',
+                customTone: customToneInput.value,
+                theme: themeBtnGroup.querySelector('.selected')?.dataset.theme || 'dark'
+            };
+        }
+
+        async function handleConversationSummary() {
+            conversationSummaryDropdown.classList.add('hidden');
+            let textToSummarize = '';
+            const messages = chatContainer.querySelectorAll('.chat-bubble');
+            if (messages.length === 0) {
+                showNotification('There is no conversation to summarize.', 'error');
+                return;
+            }
+            messages.forEach(msg => {
+                const sender = msg.classList.contains('user-bubble') ? 'User' : 'Vexel AI';
+                textToSummarize += `${sender}: ${msg.innerText}\n`;
+            });
+            showSummaryResultModal(textToSummarize);
+        }
+        async function showSummaryResultModal(text) {
+            const modalId = `summary-result-modal-${Date.now()}`;
+            const modalHTML = `<div id="${modalId}" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"><div class="p-8 rounded-2xl shadow-2xl w-full max-w-2xl m-4 relative glassmorphism"><h2 class="text-xl font-bold mb-4">Conversation Summary</h2><div id="summary-content" class="max-h-96 overflow-y-auto pr-2 text-gray-300"><div class="flex justify-center items-center h-24"><div class="loader"></div></div></div><button class="close-summary-btn mt-6 px-6 py-2 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-500 transition-colors">Close</button></div></div>`;
+            summaryModalContainer.innerHTML = modalHTML;
+            const summaryModal = getEl(modalId);
+            const summaryContent = summaryModal.querySelector('#summary-content');
+            summaryModal.querySelector('.close-summary-btn').addEventListener('click', () => summaryModal.remove());
+            try {
+                const response = await fetchWithAuth('/summarize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
+                });
+                const data = await response.json();
+                summaryContent.innerHTML = data.summary.replace(/\n/g, '<br>');
+            } catch (error) {
+                summaryContent.innerHTML = `<p class="text-red-400">Error: ${error.message}</p>`;
+            }
+        }
+
+        // --- Auth Helper ---
+        async function fetchWithAuth(url, options = {}) {
+            const response = await fetch(url, options);
+            if (response.status === 401) {
+                // Session expired or user not logged in
+                window.location.href = '/login';
+                throw new Error('Session expired. Please log in again.');
+            }
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ error: 'An unknown error occurred' }));
+                throw new Error(errorData.error);
+            }
+            return response;
+        }
+
+        // --- Run App ---
+        initialize();
+    </script>
+</body>
+</html>

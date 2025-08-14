@@ -1,320 +1,424 @@
-# Vexel AI - Complete Python Backend (with Live AI and File Handling)
-# This script provides a fully functional Flask backend for the Vexel AI application.
-# It handles user authentication, chat history, settings, file uploads, and live AI model interactions.
-#
-# To run this:
-# 1. Make sure you have Python installed.
-# 2. Install the required libraries: pip install Flask Flask-SQLAlchemy Flask-Login Werkzeug requests python-dotenv
-# 3. Create a file named .env in the same directory as this script and add your Gemini API key:
-#    GEMINI_API_KEY=your_actual_api_key_here
-# 4. Create the following folder structure:
-#    - static/
-#      - models/  (for face-api.js models)
-#      - bot.png
-#    - templates/
-#      - index.html
-#      - login.html
-#      - signup.html (or similar for registration)
-#    - uploads/ (for user file attachments)
-# 5. Run this script: python your_app_name.py
+# --- NEW IMPORTS FOR LOGIN SYSTEM & HISTORY ---
+from flask import redirect, url_for, session, flash
+from flask_bcrypt import Bcrypt
+from replit import db
+import json
+import time
+from datetime import datetime
+import uuid
+import random
+# ------------------------------------
 
 import os
-import json
 import base64
 import requests
-from datetime import datetime, timedelta
-from flask import Flask, request, jsonify, render_template, redirect, url_for, session, send_from_directory
-from flask_sqlalchemy import SQLAlchemy
-from werkzeug.security import generate_password_hash, check_password_hash
-from werkzeug.utils import secure_filename
-from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from dotenv import load_dotenv
+import google.generativeai as genai
+from flask import Flask, request, jsonify, render_template
+from flask_cors import CORS
 
-# Load environment variables from .env file
-load_dotenv()
-
-# --- App Configuration ---
+# --- App Initialization & Configuration ---
 app = Flask(__name__, template_folder='templates', static_folder='static')
-app.config['SECRET_KEY'] = os.urandom(24)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///vexel_ai.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
-app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max upload size
+CORS(app)
 
-# Ensure the upload folder exists
-if not os.path.exists(app.config['UPLOAD_FOLDER']):
-    os.makedirs(app.config['UPLOAD_FOLDER'])
+# --- NEW CONFIGURATION FOR LOGIN SYSTEM ---
+app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'a_super_secret_key_for_dev')
+bcrypt = Bcrypt(app)
+# ----------------------------------------
 
-db = SQLAlchemy(app)
-login_manager = LoginManager(app)
-login_manager.login_view = 'login_page'
+# --- NEW: CREATE UPLOAD FOLDER IF IT DOESN'T EXIST ---
+UPLOAD_FOLDER = 'static/uploads'
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+# ----------------------------------------------------
 
-# --- Gemini AI Configuration ---
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-IMAGE_GEN_MODEL = "imagen-3.0-generate-002"
-CHAT_MODEL = "gemini-2.5-flash-preview-05-20"
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+# --- Configure API Keys from Environment Secrets ---
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
-# --- Database Models ---
-class User(UserMixin, db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(100), unique=True, nullable=False)
-    password_hash = db.Column(db.String(200), nullable=False)
-    settings = db.relationship('Settings', backref='user', uselist=False, cascade="all, delete-orphan")
-    chats = db.relationship('Chat', backref='user', lazy=True, cascade="all, delete-orphan")
+# --- Initialize Gemini ---
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+    print("Gemini API configured successfully.")
+else:
+    print("WARNING: GEMINI_API_KEY not set. AI features will not work.")
 
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
 
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+# This dictionary is no longer used for emotion responses but is kept for other potential uses.
+EMOTION_QUOTES = {
+    "happy": [
+        "Keep shining, the world needs your light!",
+        "Happiness looks gorgeous on you.",
+        "Ride the wave of happiness you're on!"
+    ],
+    "sad": [
+        "It's okay to feel sad. This feeling is just a visitor.",
+        "After the rain, there's always a rainbow. Hang in there.",
+        "Be gentle with yourself. You're doing the best you can."
+    ],
+    "angry": [
+        "Take a deep breath. This feeling will pass.",
+        "Channel that fire into something productive.",
+        "Peace is the goal. Let go of what disturbs it."
+    ],
+    "surprised": [
+        "Life is full of wonderful surprises, isn't it?",
+        "Expect the unexpected! Keeps things interesting.",
+        "A surprise is a little gift from the universe."
+    ]
+}
 
-class Settings(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    settings_json = db.Column(db.Text, nullable=False, default='{}')
+# --- Helper Functions for Database Keys ---
+def get_user_key(username):
+    return f"user_{username}"
 
-    def to_dict(self):
-        default = {
-            'font': 'Inter', 'fontSize': '16', 'displayName': 'User', 'avatarUrl': '',
-            'userTextColor': '#ffffff', 'aiTextColor': '#e5e7eb', 'sidebarInputBg': '#1f2937',
-            'userBubble': 'transparent', 'aiBubble': 'transparent', 'bg1': '#4a0e69',
-            'bg2': '#d946ef', 'bg3': '#1a1a2e', 'bg4': '#ec4899', 'tone': 'default',
-            'customTone': '', 'theme': 'dark'
-        }
-        user_settings = json.loads(self.settings_json)
-        default.update(user_settings)
-        return default
+def get_history_key(username):
+    return f"history_{username}"
 
-class Chat(db.Model):
-    id = db.Column(db.String(100), primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    title = db.Column(db.String(150), nullable=False, default="New Chat")
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-    messages = db.relationship('Message', backref='chat', lazy=True, cascade="all, delete-orphan")
+def get_profile_key(username):
+    return f"profile_{username}"
 
-class Message(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    chat_id = db.Column(db.String(100), db.ForeignKey('chat.id'), nullable=False)
-    sender = db.Column(db.String(20), nullable=False)
-    content = db.Column(db.Text, nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-    message_type = db.Column(db.String(20), default='text')
-
-# --- User Loader ---
-@login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
-
-# --- AI Helper Function ---
-def call_gemini_api(model, payload):
-    if not GEMINI_API_KEY:
-        raise ValueError("GEMINI_API_KEY is not set in the environment.")
-    headers = {'Content-Type': 'application/json'}
-    method = "predict" if "imagen" in model else "generateContent"
-    api_url = f"{GEMINI_API_URL}/{model}:{method}?key={GEMINI_API_KEY}"
-    try:
-        response = requests.post(api_url, headers=headers, data=json.dumps(payload))
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        try:
-            error_details = e.response.json()
-            message = error_details.get("error", {}).get("message", str(e))
-            raise ConnectionError(f"Failed to connect to AI service: {message}")
-        except (ValueError, AttributeError):
-            raise ConnectionError(f"Failed to connect to AI service: {e}")
-
-# --- HTML Rendering and Static File Routes ---
+# --- Main Frontend Serving Route ---
 @app.route('/')
-@login_required
 def index():
-    return render_template('index.html')
+    if 'username' not in session:
+        return redirect(url_for('login'))
 
-@app.route('/login', methods=['GET', 'POST'])
-def login_page():
-    if current_user.is_authenticated:
-        return redirect(url_for('index'))
-    if request.method == 'POST':
-        data = request.get_json()
-        user = User.query.filter_by(email=data.get('email')).first()
-        if user and user.check_password(data.get('password')):
-            login_user(user, remember=True)
-            session.permanent = True
-            return jsonify({'message': 'Login successful'}), 200
-        return jsonify({'error': 'Invalid email or password'}), 401
-    return render_template('login.html')
+    # Fetch user profile to pass to template
+    profile_key = get_profile_key(session['username'])
+    user_profile = json.loads(db.get(profile_key, '{}'))
+    display_name = user_profile.get('displayName', session['username'])
+    avatar_url = user_profile.get('avatarUrl', '/static/bot.png')
+    font_size = user_profile.get('fontSize', '16px') # Default font size
+    font_style = user_profile.get('fontStyle', 'Inter') # Default font style
 
-@app.route('/register', methods=['GET', 'POST'])
-def register_page():
-    if current_user.is_authenticated:
-        return redirect(url_for('index'))
-    if request.method == 'POST':
-        data = request.get_json()
-        if User.query.filter_by(email=data.get('email')).first():
-            return jsonify({'error': 'Email address already registered'}), 409
-        new_user = User(email=data.get('email'))
-        new_user.set_password(data.get('password'))
-        db.session.add(new_user)
-        db.session.add(Settings(user=new_user, settings_json='{}'))
-        db.session.commit()
-        login_user(new_user, remember=True)
-        return jsonify({'message': 'Registration successful'}), 201
-    # Serve the signup page for GET requests
-    return render_template('signup.html')
+    return render_template(
+        'index.html', 
+        username=display_name, 
+        avatar_url=avatar_url,
+        font_size=font_size,
+        font_style=font_style
+    )
 
-@app.route('/logout')
-@login_required
-def logout():
-    logout_user()
-    return redirect(url_for('login_page'))
 
-@app.route('/favicon.ico')
-def favicon():
-    return send_from_directory(os.path.join(app.root_path, 'static'),
-                               'favicon.ico', mimetype='image/vnd.microsoft.icon')
+# --- Image Generation Route ---
+@app.route('/generate', methods=['POST'])
+def generate_image():
+    if 'username' not in session:
+        return jsonify({'error': 'Authentication required.'}), 401
+    if not GEMINI_API_KEY:
+        return jsonify({'error': 'Server is not configured for image generation.'}), 500
+    prompt = request.form.get('prompt')
+    if not prompt:
+        return jsonify({'error': 'Prompt is required.'}), 400
+    try:
+        # Use a Gemini model capable of image generation
+        model = genai.GenerativeModel('gemini-1.5-pro-latest') 
 
-# --- API Routes ---
-@app.route('/settings', methods=['GET', 'POST'])
-@login_required
-def user_settings():
-    settings = Settings.query.filter_by(user_id=current_user.id).first_or_404()
-    if request.method == 'POST':
-        settings.settings_json = json.dumps(request.get_json())
-        db.session.commit()
-        return jsonify({'message': 'Settings saved'}), 200
-    return jsonify(settings.to_dict())
+        # Craft a prompt that explicitly asks for an image
+        image_generation_prompt = f"Generate a high-quality, photorealistic image of: {prompt}"
+
+        response = model.generate_content(image_generation_prompt)
+
+        # The Gemini API returns image data in a specific part of the response.
+        # We need to find the part with inline_data and a mime_type for an image.
+        image_part = None
+        for part in response.parts:
+            if hasattr(part, 'inline_data') and part.inline_data and 'image' in part.mime_type:
+                image_part = part
+                break
+
+        if not image_part:
+            # Fallback or error if no image is generated.
+            if response.text:
+                return jsonify({'error': f"The model returned text instead of an image: {response.text}"}), 500
+            raise ValueError("No image data received from Gemini.")
+
+        # The data is already base64 encoded by the API
+        image_b64 = base64.b64encode(image_part.inline_data.data).decode('utf-8')
+        image_data_url = f'data:{image_part.mime_type};base64,{image_b64}'
+
+        chat_id = request.form.get('chat_id')
+        user_message = {"sender": "user", "content": prompt, "type": "text"}
+        ai_message = {"sender": "ai", "content": image_data_url, "type": "image"}
+        save_message_to_history(session['username'], chat_id, user_message)
+        save_message_to_history(session['username'], chat_id, ai_message)
+        return jsonify({'image_url': image_data_url})
+    except Exception as e:
+        print(f"Error in /generate: {e}")
+        return jsonify({'error': str(e)}), 500
+
+# --- Text Summarization Route ---
+@app.route('/summarize', methods=['POST'])
+def summarize_text():
+    if 'username' not in session:
+        return jsonify({'error': 'Authentication required.'}), 401
+    if not GEMINI_API_KEY:
+        return jsonify({'error': 'Server is not configured for summarization.'}), 500
+    text_to_summarize = request.get_json().get('text')
+    if not text_to_summarize:
+        return jsonify({'error': 'Text to summarize is required.'}), 400
+    try:
+        model = genai.GenerativeModel('gemini-1.5-pro-latest')
+        prompt = f"Please provide a concise summary of the following conversation or text:\n\n---\n\n{text_to_summarize}"
+        response = model.generate_content(prompt)
+        return jsonify({'summary': response.text})
+    except Exception as e:
+        print(f"Error during summarization: {e}")
+        return jsonify({'error': "Failed to summarize the text."}), 500
+
+# --- Main Chat Route (With Emotion Detector Logic) ---
+@app.route('/chat', methods=['POST'])
+def handle_chat():
+    if 'username' not in session:
+        return jsonify({'error': 'Authentication required.'}), 401
+    if not GEMINI_API_KEY:
+        return jsonify({'error': 'Server is not configured for chat.'}), 500
+
+    data = request.get_json()
+    user_prompt = data.get('prompt', '')
+    emotion = data.get('emotion', 'neutral')
+
+    # ok
+    # The previous logic here was blocking emotion prompts from reaching the AI.
+    # It has been replaced with a dynamic system instruction below to handle it correctly.
+
+    # Standard chat logic
+    tone = data.get('tone', 'default')
+    file_content = data.get('file_content', None)
+    chat_id = data.get('chat_id')
+
+    if not user_prompt and not file_content:
+        return jsonify({'error': 'A prompt or file is required.'}), 400
+
+    system_prompts = {
+        'formal': "You are a professional, formal assistant.",
+        'fun': "You are a witty, fun-loving assistant.",
+        'default': "You are Vexel AI, a helpful assistant."
+    }
+
+    # Set the system instruction based on the context (emotion detection or regular chat)
+    if user_prompt.startswith("(System: The user's expression just changed to"):
+        system_instruction = "You are Vexel AI. You can see the user via their webcam. Briefly and naturally comment on the emotion they are showing, which is mentioned in the user's prompt. For example, if the prompt says they are happy, you could say 'I see you're smiling!' or 'You look happy right now!'"
+    else:
+        system_instruction = system_prompts.get(tone, system_prompts['default'])
+
+    model_contents = []
+    if file_content:
+        # Handle file content (unchanged)
+        try:
+            header, encoded_data = file_content.split(",", 1)
+            mime_type = header.split(":")[1].split(";")[0]
+            if mime_type.startswith("image/"):
+                model_contents.append(user_prompt)
+                model_contents.append({"mime_type": mime_type, "data": encoded_data})
+            else:
+                text_content = base64.b64decode(encoded_data).decode('utf-8')
+                model_contents.append(f"File content:\n{text_content}\n\nUser prompt: {user_prompt}")
+        except Exception:
+            model_contents.append(f"Text content: {file_content}\n\nUser prompt: {user_prompt}")
+    else:
+        model_contents.append(user_prompt)
+
+    try:
+        model = genai.GenerativeModel('gemini-1.5-pro-latest', system_instruction=system_instruction)
+        response = model.generate_content(model_contents)
+        solution_text = response.text
+
+        # Do not save the automatic emotion-triggered messages to history to keep the log clean.
+        if not user_prompt.startswith("(System:"):
+            user_message = {"sender": "user", "content": user_prompt, "type": "text"}
+            if file_content and 'mime_type' in locals() and mime_type.startswith("image/"):
+                user_message['attachment'] = file_content 
+
+            ai_message = {"sender": "ai", "content": solution_text, "type": "text"}
+
+            save_message_to_history(session['username'], chat_id, user_message)
+            save_message_to_history(session['username'], chat_id, ai_message)
+
+        return jsonify({'solution': solution_text})
+    except Exception as e:
+        print(f"Error during chat: {e}")
+        return jsonify({'error': "The AI model failed to respond."}), 500
+
+# --- Chat History Management Functions ---
+def save_message_to_history(username, chat_id, message):
+    history_key = get_history_key(username)
+    user_history = json.loads(db.get(history_key, '{}'))
+    if chat_id not in user_history:
+        # Create a title from the first message content
+        title_content = message.get('content', 'New Chat')
+        if isinstance(title_content, str):
+             title = (title_content[:30] + "...") if len(title_content) > 30 else title_content
+        else:
+             title = "New Chat"
+        user_history[chat_id] = {"title": title, "created_at": time.time(), "messages": []}
+
+    # Ensure messages list exists
+    if 'messages' not in user_history[chat_id]:
+        user_history[chat_id]['messages'] = []
+
+    user_history[chat_id]['messages'].append(message)
+    db[history_key] = json.dumps(user_history)
 
 @app.route('/history', methods=['GET'])
-@login_required
 def get_history():
-    chats = Chat.query.filter_by(user_id=current_user.id).order_by(Chat.timestamp.desc()).all()
-    grouped = {}
-    today = datetime.utcnow().date()
-    for chat in chats:
-        group = "Today" if chat.timestamp.date() == today else "Yesterday" if chat.timestamp.date() == today - timedelta(days=1) else chat.timestamp.strftime('%B %d, %Y')
-        if group not in grouped: grouped[group] = []
-        grouped[group].append({'id': chat.id, 'title': chat.title})
-    return jsonify(grouped)
+    if 'username' not in session: return jsonify({'error': 'Authentication required.'}), 401
+    history_key = get_history_key(session['username'])
+    user_history = json.loads(db.get(history_key, '{}'))
+    # Grouping and sorting logic (unchanged)
+    grouped_chats = {}
+    today = datetime.now().date()
+    sorted_chats = sorted(user_history.items(), key=lambda item: item[1].get('created_at', 0), reverse=True)
+    for chat_id, data in sorted_chats:
+        chat_date = datetime.fromtimestamp(data.get('created_at', 0)).date()
+        delta = today - chat_date
+        if delta.days == 0: group_name = "Today"
+        elif delta.days == 1: group_name = "Yesterday"
+        else: group_name = chat_date.strftime("%B %d, %Y")
+        if group_name not in grouped_chats:
+            grouped_chats[group_name] = []
+        grouped_chats[group_name].append({"id": chat_id, "title": data["title"]})
+    return jsonify(grouped_chats)
+
+@app.route('/chat/<chat_id>', methods=['GET'])
+def get_chat_messages(chat_id):
+    if 'username' not in session: return jsonify({'error': 'Authentication required.'}), 401
+    history_key = get_history_key(session['username'])
+    user_history = json.loads(db.get(history_key, '{}'))
+    chat_data = user_history.get(chat_id)
+    return jsonify(chat_data['messages']) if chat_data else (jsonify({"error": "Chat not found."}), 404)
+
+@app.route('/chat/<chat_id>', methods=['DELETE'])
+def delete_chat(chat_id):
+    if 'username' not in session: return jsonify({'error': 'Authentication required.'}), 401
+    history_key = get_history_key(session['username'])
+    user_history = json.loads(db.get(history_key, '{}'))
+    if chat_id in user_history:
+        del user_history[chat_id]
+        db[history_key] = json.dumps(user_history)
+        return jsonify({"success": True})
+    return jsonify({"error": "Chat not found."}), 404
 
 @app.route('/history/clear', methods=['POST'])
-@login_required
 def clear_history():
-    Chat.query.filter_by(user_id=current_user.id).delete()
-    db.session.commit()
-    return jsonify({'message': 'History cleared'})
+    if 'username' not in session: return jsonify({'error': 'Authentication required.'}), 401
+    history_key = get_history_key(session['username'])
+    db[history_key] = json.dumps({})
+    return jsonify({"success": True})
 
-@app.route('/chat/<string:chat_id>', methods=['GET', 'DELETE'])
-@login_required
-def manage_chat(chat_id):
-    chat = Chat.query.filter_by(id=chat_id, user_id=current_user.id).first_or_404()
-    if request.method == 'DELETE':
-        db.session.delete(chat)
-        db.session.commit()
-        return jsonify({'message': 'Chat deleted'})
-    messages = Message.query.filter_by(chat_id=chat_id).order_by(Message.timestamp.asc()).all()
-    return jsonify([{'sender': m.sender, 'content': m.content, 'type': m.message_type} for m in messages])
+# --- NEW: Chat History Search Route ---
+@app.route('/history/search', methods=['GET'])
+def search_history():
+    if 'username' not in session:
+        return jsonify({'error': 'Authentication required.'}), 401
 
-@app.route('/upload', methods=['POST'])
-@login_required
-def upload_file():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file part'}), 400
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-    if file:
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
-        return jsonify({'message': 'File uploaded successfully', 'filepath': filepath}), 200
-    return jsonify({'error': 'File upload failed'}), 500
+    query = request.args.get('q', '').lower()
+    if not query:
+        return jsonify({'error': 'Search query is required.'}), 400
 
-@app.route('/chat', methods=['POST'])
-@login_required
-def handle_chat_message():
+    history_key = get_history_key(session['username'])
+    user_history = json.loads(db.get(history_key, '{}'))
+
+    search_results = []
+    for chat_id, data in user_history.items():
+        # Search in title
+        if query in data.get('title', '').lower():
+            search_results.append({"id": chat_id, "title": data["title"], "match_in": "title"})
+            continue # Move to next chat to avoid duplicates
+        # Search in messages
+        for message in data.get('messages', []):
+            if isinstance(message.get('content'), str) and query in message.get('content', '').lower():
+                search_results.append({"id": chat_id, "title": data["title"], "match_in": "message"})
+                break # Found a match in this chat, move to the next one
+
+    return jsonify(search_results)
+
+# --- NEW: User Profile Management Routes ---
+@app.route('/profile', methods=['GET'])
+def get_profile():
+    if 'username' not in session:
+        return jsonify({'error': 'Authentication required.'}), 401
+
+    profile_key = get_profile_key(session['username'])
+    profile_data = json.loads(db.get(profile_key, '{}'))
+
+    # Ensure defaults if profile is empty
+    profile_data.setdefault('displayName', session['username'])
+    profile_data.setdefault('avatarUrl', '/static/bot.png')
+    profile_data.setdefault('fontSize', '16px')
+    profile_data.setdefault('fontStyle', 'Inter')
+
+
+    return jsonify(profile_data)
+
+@app.route('/profile', methods=['POST'])
+def update_profile():
+    if 'username' not in session:
+        return jsonify({'error': 'Authentication required.'}), 401
+
     data = request.get_json()
-    prompt = data.get('prompt', '')
-    chat_id = data.get('chat_id')
-    model_mode = data.get('model', 'chat')
-    file_content_b64 = data.get('file_content') # Now passed from frontend
 
-    # --- Handle File Content ---
-    full_prompt = prompt
-    if file_content_b64:
-        try:
-            # The frontend sends a Data URL, so we need to parse it
-            header, encoded = file_content_b64.split(",", 1)
-            file_data = base64.b64decode(encoded)
-            # We assume it's a text file for now for simplicity
-            file_text = file_data.decode('utf-8')
-            full_prompt = f"Using the following document as context:\n\n---\n{file_text}\n---\n\nNow, please answer the following question: {prompt}"
-        except Exception as e:
-            print(f"Error decoding file content: {e}")
-            # Don't halt execution, just use the original prompt
-            full_prompt = prompt
+    profile_key = get_profile_key(session['username'])
+    profile_data = json.loads(db.get(profile_key, '{}'))
 
-    chat = Chat.query.filter_by(id=chat_id, user_id=current_user.id).first()
-    if not chat:
-        title = (full_prompt[:50] + '...') if full_prompt else "New Chat"
-        chat = Chat(id=chat_id, user_id=current_user.id, title=title)
-        db.session.add(chat)
+    # Update only the fields that are provided in the request
+    if 'displayName' in data:
+        profile_data['displayName'] = data['displayName']
+    if 'avatarUrl' in data:
+        profile_data['avatarUrl'] = data['avatarUrl']
+    if 'fontSize' in data:
+        profile_data['fontSize'] = data['fontSize']
+    if 'fontStyle' in data:
+        profile_data['fontStyle'] = data['fontStyle']
 
-    if full_prompt:
-        db.session.add(Message(chat_id=chat_id, sender='user', content=prompt)) # Save original prompt
+    db[profile_key] = json.dumps(profile_data)
 
-    try:
-        if model_mode == 'image':
-            payload = {"instances": [{"prompt": full_prompt}], "parameters": {"sampleCount": 1}}
-            api_response = call_gemini_api(IMAGE_GEN_MODEL, payload)
-            image_b64 = api_response.get("predictions", [{}])[0].get("bytesBase64Encoded")
-            if not image_b64:
-                raise ValueError("AI model did not return an image.")
-            ai_content = f"data:image/png;base64,{image_b64}"
-            msg_type = 'image'
+    return jsonify({"success": True, "message": "Profile updated."})
+
+# --- User Authentication Routes ---
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        user_key = get_user_key(username)
+        if db.get(user_key):
+            flash("Username already exists! Please choose another.", "danger")
+            return redirect(url_for('signup'))
+        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+        db[user_key] = hashed_password
+        # Create a default profile for the new user
+        profile_key = get_profile_key(username)
+        default_profile = {
+            'displayName': username, 
+            'avatarUrl': '/static/bot.png',
+            'fontSize': '16px',
+            'fontStyle': 'Inter'
+        }
+        db[profile_key] = json.dumps(default_profile)
+        flash("Account created successfully! Please log in.", "success")
+        return redirect(url_for('login'))
+    return render_template('signup.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        user_key = get_user_key(username)
+        hashed_password = db.get(user_key)
+        if hashed_password and bcrypt.check_password_hash(hashed_password, password):
+            session['username'] = username
+            return redirect(url_for('index'))
         else:
-            tone = data.get('tone', 'default')
-            emotion = data.get('emotion')
+            flash("Invalid username or password.", "danger")
+            return redirect(url_for('login'))
+    return render_template('login.html')
 
-            if tone and tone != 'default' and tone != 'custom':
-                 full_prompt = f"Please respond in a {tone} tone. {full_prompt}"
-            elif tone == 'custom' and data.get('customTone'):
-                 custom_instruction = data.get('customTone')
-                 full_prompt = f"{custom_instruction}\n\n{full_prompt}"
-
-            if model_mode == 'emotion' and emotion:
-                full_prompt = f"(System: User's expression is '{emotion}'. Comment briefly, then address their prompt.)\n{full_prompt}"
-
-            payload = {"contents": [{"parts": [{"text": full_prompt}]}]}
-            api_response = call_gemini_api(CHAT_MODEL, payload)
-            ai_content = api_response.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "Sorry, I couldn't process that.")
-            msg_type = 'text'
-
-        db.session.add(Message(chat_id=chat_id, sender='ai', content=ai_content, message_type=msg_type))
-        db.session.commit()
-        return jsonify({'solution': ai_content, 'type': msg_type})
-
-    except (ValueError, ConnectionError) as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/summarize', methods=['POST'])
-@login_required
-def summarize_conversation():
-    text = request.get_json().get('text', '')
-    if not text:
-        return jsonify({'error': 'No text to summarize'}), 400
-    try:
-        summary_prompt = f"Please provide a concise summary of the following conversation:\n\n{text}"
-        payload = {"contents": [{"parts": [{"text": summary_prompt}]}]}
-        api_response = call_gemini_api(CHAT_MODEL, payload)
-        summary = api_response.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "Could not generate summary.")
-        return jsonify({'summary': summary})
-    except (ValueError, ConnectionError) as e:
-        return jsonify({'error': str(e)}), 500
+@app.route('/logout')
+def logout():
+    session.pop('username', None)
+    return redirect(url_for('login'))
 
 # --- Main Execution ---
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-    app.run(debug=True, port=5000)
+    app.run(host='0.0.0.0', port=8080)
