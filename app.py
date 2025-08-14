@@ -1,4 +1,4 @@
-# --- NEW IMPORTS FOR LOGIN SYSTEM, HISTORY & IMAGEN (now DALL-E) ---
+# --- NEW IMPORTS FOR LOGIN SYSTEM, HISTORY & IMAGE GENERATION ---
 from flask import redirect, url_for, session, flash
 from flask_bcrypt import Bcrypt
 from replit import db
@@ -7,13 +7,13 @@ import time
 from datetime import datetime
 import uuid
 import random
-# Removed vertexai specific imports as we are switching to DALL-E
+
+# Removed previous image generation specific imports (Vertex AI, OpenAI DALL-E)
 # import vertexai
 # from vertexai.generative_models import GenerativeModel
+# import openai
 
-# New import for OpenAI
-import openai
-import requests # For downloading images from DALL-E's URL response
+import requests # For downloading images from URLs and making API calls to Stability AI
 
 import os
 import base64
@@ -38,31 +38,38 @@ if not os.path.exists(UPLOAD_FOLDER):
 
 # --- Configure API Keys from Environment Secrets ---
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-# GCP_PROJECT_ID is no longer needed for DALL-E, but keeping it if other Vertex AI features are used
+# GCP_PROJECT_ID is not directly used for Stability AI or Gemini chat, but kept if needed for other features
 GCP_PROJECT_ID = os.environ.get('GCP_PROJECT_ID') 
-# GCP_SERVICE_ACCOUNT_KEY is no longer needed for DALL-E
-# GCP_SERVICE_ACCOUNT_KEY = os.environ.get('GCP_SERVICE_ACCOUNT_KEY')
 
-# New API Key for DALL-E and now also for GPT-4o-mini chat
+# New API Key for Stability AI
+STABILITY_API_KEY = os.environ.get('STABILITY_API_KEY')
+STABILITY_API_HOST = os.environ.get('STABILITY_API_HOST', 'https://api.stability.ai')
+STABILITY_ENGINE_ID = "stable-diffusion-xl-1024-v0-9" # Recommended for high quality. You can also try "stable-diffusion-v1-6"
+
+# OpenAI API Key (for GPT-4o-mini chat fallback)
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 
-# --- Initialize Gemini (for chat/summarize and now prompt generation) ---
+
+# --- Initialize Gemini (for chat/summarize and prompt generation) ---
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
     print("Gemini API configured successfully.")
 else:
     print("WARNING: GEMINI_API_KEY not set. Text-based AI features will not work (will try OpenAI for chat).")
 
-# --- Initialize DALL-E and OpenAI Chat Client ---
-dalle_client = None # This client instance will be used for both DALL-E and OpenAI chat models
+# --- Initialize OpenAI Chat Client (for chat fallback) ---
+# The OpenAI client is only needed if you use GPT-4o-mini for chat.
+# It's not used for Stability AI image generation directly.
+openai_chat_client = None
 if OPENAI_API_KEY:
     try:
-        dalle_client = openai.OpenAI(api_key=OPENAI_API_KEY)
-        print("OpenAI DALL-E and Chat client configured successfully.")
+        import openai # Ensure openai is imported if not already by other parts
+        openai_chat_client = openai.OpenAI(api_key=OPENAI_API_KEY)
+        print("OpenAI Chat client configured successfully.")
     except Exception as e:
-        print(f"WARNING: Failed to initialize OpenAI client. Image generation and OpenAI chat will not work. Error: {e}")
+        print(f"WARNING: Failed to initialize OpenAI Chat client. OpenAI chat will not work. Error: {e}")
 else:
-    print("WARNING: OPENAI_API_KEY not set. Image generation and OpenAI chat will not work.")
+    print("WARNING: OPENAI_API_KEY not set. OpenAI chat will not work.")
 
 
 # This dictionary is no longer used for emotion responses but is kept for other potential uses.
@@ -139,7 +146,7 @@ def generate_image_prompt():
         model = genai.GenerativeModel('gemini-1.5-pro-latest')
 
         system_instruction = (
-            "You are an expert prompt engineer for AI image generation models like DALL-E. "
+            "You are an expert prompt engineer for AI image generation models like Stable Diffusion. "
             "Your task is to take a simple idea and expand it into a highly detailed, creative, "
             "and vivid prompt (max 150 words) that will produce an amazing image. "
             "Include details about style, lighting, composition, colors, and mood. "
@@ -157,15 +164,15 @@ def generate_image_prompt():
         return jsonify({'error': f"Failed to generate detailed prompt: {str(e)}"}), 500
 
 
-# --- Image Generation Route (USES DALL-E) ---
+# --- Image Generation Route (NOW USES STABILITY AI) ---
 @app.route('/generate', methods=['POST'])
 def generate_image():
     if 'username' not in session:
         return jsonify({'error': 'Authentication required.'}), 401
 
-    # Check if DALL-E client is initialized
-    if not dalle_client:
-        return jsonify({'error': 'Server is not configured for image generation (OpenAI client not initialized).'}), 500
+    # Check if Stability AI API key is configured
+    if not STABILITY_API_KEY:
+        return jsonify({'error': 'Server is not configured for image generation (Stability AI API key missing).'}), 500
 
     # Handle both form data and JSON data (frontend should send JSON)
     if request.content_type and 'application/json' in request.content_type:
@@ -181,28 +188,47 @@ def generate_image():
         return jsonify({'error': 'Prompt is required.'}), 400
 
     try:
-        print(f"Generating image with DALL-E for prompt: '{prompt}'")
+        print(f"Generating image with Stability AI for prompt: '{prompt}'")
 
-        # Generate the image using DALL-E 3
-        response = dalle_client.images.generate(
-            model="dall-e-3", # Specify DALL-E 3 model
-            prompt=prompt,
-            size="1024x1024", # You can choose "1024x1024", "1792x1024", or "1024x1792"
-            quality="standard", # or "hd"
-            n=1, # Number of images to generate
+        # Make the request to Stability AI API
+        response = requests.post(
+            f"{STABILITY_API_HOST}/v1/generation/{STABILITY_ENGINE_ID}/text-to-image",
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json", # Request JSON response
+                "Authorization": f"Bearer {STABILITY_API_KEY}"
+            },
+            json={
+                "text_prompts": [
+                    {
+                        "text": prompt
+                    }
+                ],
+                "cfg_scale": 7, # Classifier-free guidance scale
+                "clip_guidance_preset": "FAST_BLUE", # Recommended preset
+                "height": 1024, # Recommended for stable-diffusion-xl-1024-v0-9
+                "width": 1024,  # Recommended for stable-diffusion-xl-1024-v0-9
+                "samples": 1, # Number of images to generate
+                "steps": 30, # Number of diffusion steps
+            }
         )
 
-        # DALL-E returns a URL to the generated image
-        image_url_from_dalle = response.data[0].url
+        response.raise_for_status() # Raise an HTTPError for bad responses (4xx or 5xx)
 
-        # Download the image from the URL and save it locally
+        response_data = response.json()
+
+        if not response_data or not response_data.get('artifacts'):
+            raise Exception("Stability AI did not return any image artifacts.")
+
+        # Stability AI returns base64 encoded images in 'artifacts'
+        image_base64 = response_data['artifacts'][0]['base64']
+
+        # Save the generated image from base64 to a file
         image_filename = f"{uuid.uuid4()}.png"
         image_path = os.path.join(UPLOAD_FOLDER, image_filename)
 
-        # Use requests to download the image
-        img_data = requests.get(image_url_from_dalle).content
-        with open(image_path, 'wb') as handler:
-            handler.write(img_data)
+        with open(image_path, "wb") as f:
+            f.write(base64.b64decode(image_base64))
 
         # Create the public URL for the locally saved image
         final_image_url = f"/{image_path}" # Relative URL for the browser
@@ -217,11 +243,17 @@ def generate_image():
         # Return the URL of the generated image
         return jsonify({'solution': ai_message['content'], 'image_url': final_image_url})
 
-    except openai.APIError as e:
-        print(f"OpenAI API Error in /generate: {e}")
-        # Improved error message extraction for OpenAI APIError
-        error_message = f"Sorry, the DALL-E model reported an API error: {e.response.json().get('error', {}).get('message', str(e))}"
-        return jsonify({'error': error_message}), 500
+    except requests.exceptions.RequestException as e:
+        print(f"Stability AI Request Error in /generate: {e}")
+        error_detail = "Unknown request error."
+        if e.response is not None:
+            try:
+                error_json = e.response.json()
+                error_detail = error_json.get('message', error_json.get('errors', str(e)))
+            except json.JSONDecodeError:
+                error_detail = e.response.text # Fallback to raw text if not JSON
+        error_message = f"Sorry, the Stability AI model reported an API error: {error_detail}"
+        return jsonify({'error': error_message}), e.response.status_code if e.response is not None else 500
     except Exception as e:
         print(f"General Error in /generate: {e}")
         error_message = f"Sorry, I couldn't create the image. An unexpected error occurred: {str(e)}"
@@ -299,7 +331,7 @@ def handle_chat():
             response = model.generate_content(model_contents)
             solution_text = response.text
 
-        elif OPENAI_API_KEY and dalle_client:
+        elif OPENAI_API_KEY and openai_chat_client: # Use openai_chat_client here
             # --- Fallback to OpenAI GPT-4o-mini for chat if Gemini is not configured ---
             print("Using OpenAI GPT-4o-mini for chat.")
             messages = [{"role": "system", "content": system_instruction_text}]
@@ -324,7 +356,7 @@ def handle_chat():
             else:
                 messages.append({"role": "user", "content": user_prompt})
 
-            openai_response = dalle_client.chat.completions.create(
+            openai_response = openai_chat_client.chat.completions.create( # Use openai_chat_client here
                 model="gpt-4o-mini", # Using the text model specified by the user
                 messages=messages
             )
