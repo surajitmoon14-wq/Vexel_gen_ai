@@ -8,7 +8,7 @@ from datetime import datetime
 import uuid
 import random
 import vertexai
-from vertexai.preview.vision_models import ImageGenerationModel
+from vertexai.generative_models import GenerativeModel
 # ----------------------------------------------------
 
 import os
@@ -48,7 +48,7 @@ else:
 if GCP_PROJECT_ID:
     try:
         vertexai.init(project=GCP_PROJECT_ID, location="us-central1")
-        imagen_model = ImageGenerationModel.from_pretrained("imagegeneration@005")
+        imagen_model = GenerativeModel("imagen-3.0-generate-001")
         print("Vertex AI (for Imagen) configured successfully.")
     except Exception as e:
         print(f"WARNING: Failed to initialize Vertex AI. Image generation will not work. Error: {e}")
@@ -137,16 +137,20 @@ def generate_image():
 
     try:
         print(f"Generating image with Imagen for prompt: '{prompt}'")
-        # Generate the image using the Imagen model
-        images = imagen_model.generate_images(
-            prompt=prompt,
-            number_of_images=1
-        )
-
+        # Generate the image using the new Imagen model
+        response = imagen_model.generate_content([prompt])
+        
+        # Extract the generated image
+        image_data = response.candidates[0].content.parts[0].inline_data.data
+        
         # Save the generated image to a file
         image_filename = f"{uuid.uuid4()}.png"
         image_path = os.path.join(UPLOAD_FOLDER, image_filename)
-        images[0].save(location=image_path)
+        
+        # Decode and save the image
+        import base64
+        with open(image_path, "wb") as f:
+            f.write(base64.b64decode(image_data))
 
         # Create the public URL for the image
         image_url = f"/{image_path}" # Relative URL for the browser
