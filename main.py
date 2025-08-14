@@ -99,72 +99,50 @@ def index():
     )
 
 
-# --- Universal Generation Route ---
+# --- Image Generation Route ---
 @app.route('/generate', methods=['POST'])
-def generate():
+def generate_image():
     if 'username' not in session:
         return jsonify({'error': 'Authentication required.'}), 401
     if not GEMINI_API_KEY:
-        return jsonify({'error': 'Server is not configured for AI generation.'}), 500
-    
+        return jsonify({'error': 'Server is not configured for image generation.'}), 500
+    prompt = request.form.get('prompt')
+    if not prompt:
+        return jsonify({'error': 'Prompt is required.'}), 400
     try:
-        # Check if request is JSON (from frontend) or form data (from image generation)
-        if request.is_json:
-            data = request.get_json()
-            prompt = data.get('prompt')
-            generation_type = data.get('type', 'text')
-            chat_id = data.get('chat_id')
-        else:
-            prompt = request.form.get('prompt')
-            generation_type = request.form.get('type', 'image')
-            chat_id = request.form.get('chat_id')
-        
-        if not prompt:
-            return jsonify({'error': 'Prompt is required.'}), 400
+        # Use a Gemini model capable of image generation
+        model = genai.GenerativeModel('gemini-1.5-pro-latest') 
 
-        model = genai.GenerativeModel('gemini-1.5-pro-latest')
+        # Craft a more explicit prompt to guide the model towards image generation
+        image_generation_prompt = f"Generate a single, high-quality, photorealistic image based on the following description: {prompt}. Your response should be only the image data, not text."
 
-        if generation_type == 'image':
-            # Image generation logic
-            image_generation_prompt = f"Generate a high-quality, photorealistic image of: {prompt}"
-            response = model.generate_content(image_generation_prompt)
+        response = model.generate_content(image_generation_prompt)
 
-            # Look for image data in response
-            image_part = None
-            for part in response.parts:
-                if hasattr(part, 'inline_data') and part.inline_data and 'image' in part.mime_type:
-                    image_part = part
-                    break
+        # The Gemini API returns image data in a specific part of the response.
+        # We need to find the part with inline_data and a mime_type for an image.
+        image_part = None
+        for part in response.parts:
+            if hasattr(part, 'inline_data') and part.inline_data and 'image' in part.mime_type:
+                image_part = part
+                break
 
-            if not image_part:
-                # If no image generated, return text response instead
-                if response.text:
-                    return jsonify({'error': f"The model returned text instead of an image: {response.text}"}), 500
-                raise ValueError("No image data received from Gemini.")
+        if not image_part:
+            # Fallback or error if no image is generated.
+            if response.text:
+                error_message = f"The AI model responded with text instead of an image. This can happen if the request is unclear or violates safety policies. The model said: '{response.text}'"
+                return jsonify({'error': error_message}), 500
+            raise ValueError("No image data received from Gemini.")
 
-            # Process image data
-            image_b64 = base64.b64encode(image_part.inline_data.data).decode('utf-8')
-            image_data_url = f'data:{image_part.mime_type};base64,{image_b64}'
+        # The data is already base64 encoded by the API
+        image_b64 = base64.b64encode(image_part.inline_data.data).decode('utf-8')
+        image_data_url = f'data:{image_part.mime_type};base64,{image_b64}'
 
-            # Save to history
-            user_message = {"sender": "user", "content": prompt, "type": "text"}
-            ai_message = {"sender": "ai", "content": image_data_url, "type": "image"}
-            save_message_to_history(session['username'], chat_id, user_message)
-            save_message_to_history(session['username'], chat_id, ai_message)
-            
-            return jsonify({'image_url': image_data_url})
-        else:
-            # Text generation logic
-            response = model.generate_content(prompt)
-            
-            # Save to history
-            user_message = {"sender": "user", "content": prompt, "type": "text"}
-            ai_message = {"sender": "ai", "content": response.text, "type": "text"}
-            save_message_to_history(session['username'], chat_id, user_message)
-            save_message_to_history(session['username'], chat_id, ai_message)
-            
-            return jsonify({'solution': response.text})
-
+        chat_id = request.form.get('chat_id')
+        user_message = {"sender": "user", "content": prompt, "type": "text"}
+        ai_message = {"sender": "ai", "content": image_data_url, "type": "image"}
+        save_message_to_history(session['username'], chat_id, user_message)
+        save_message_to_history(session['username'], chat_id, ai_message)
+        return jsonify({'image_url': image_data_url})
     except Exception as e:
         print(f"Error in /generate: {e}")
         return jsonify({'error': str(e)}), 500
