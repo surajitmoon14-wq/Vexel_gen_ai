@@ -306,14 +306,14 @@ def handle_chat():
         return jsonify({'error': 'A prompt or file is required.'}), 400
 
     system_prompts = {
-        'formal': "You are a professional, formal assistant.",
-        'fun': "You are a witty, fun-loving assistant.",
-        'default': "You are Vexel AI, a helpful assistant."
+        'formal': "You are Vexel AI, a professional, formal assistant created by Vexel Studio Lab.",
+        'fun': "You are Vexel AI, a witty, fun-loving assistant created by Vexel Studio Lab.",
+        'default': "You are Vexel AI, a helpful assistant created by Vexel Studio Lab. When asked about your creator or who made you, always say you were created by Vexel Studio Lab."
     }
 
     # Determine system instruction based on emotion or general tone
     if user_prompt.startswith("(System: The user's expression just changed to"):
-        system_instruction_text = "You are Vexel AI. You can see the user via their webcam. Briefly and naturally comment on the emotion they are showing, which is mentioned in the user's prompt. For example, if the prompt says they are happy, you could say 'I see you're smiling!' or 'You look happy right now!'"
+        system_instruction_text = "You are Vexel AI, created by Vexel Studio Lab. You can see the user via their webcam. Briefly and naturally comment on the emotion they are showing, which is mentioned in the user's prompt. For example, if the prompt says they are happy, you could say 'I see you're smiling!' or 'You look happy right now!'"
     else:
         system_instruction_text = system_prompts.get(tone, system_prompts['default'])
 
