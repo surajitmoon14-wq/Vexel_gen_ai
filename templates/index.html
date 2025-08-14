@@ -100,13 +100,15 @@
 
         /* --- ADDED: Emotion AI View & Typing Indicator Styles --- */
         main.emotion-active-layout { @apply flex-row items-start gap-4; }
-        main.emotion-active-layout #emotion-view { @apply flex-shrink-0 w-full max-w-md; }
+        main.emotion-active-layout #emotion-view { @apply flex-shrink-0 w-full max-w-sm; }
         main.emotion-active-layout #chat-view { @apply flex-grow h-full; }
 
-        #emotion-view { @apply flex-grow flex-col justify-center items-center text-center p-0; }
+        #emotion-view { @apply flex-col justify-center items-center text-center p-4; }
         #emotion-webcam {
             width: 100%;
-            height: auto;
+            max-width: 400px;
+            height: 300px;
+            object-fit: cover;
             border-radius: 1rem;
             border: 2px solid rgba(255, 255, 255, 0.2);
             transform: scaleX(-1);
@@ -242,10 +244,11 @@
                             <p id="gemini-prompt-loading-text" class="text-center text-gray-400 mt-2 hidden">Generating prompt...</p>
                         </div>
 
-                        <div id="image-result-container" class="mt-6 p-4 border border-gray-700 rounded-lg bg-gray-900 flex items-center justify-center min-h-[200px] relative overflow-hidden">
+                        <div id="image-result-container" class="mt-6 p-4 border border-gray-700 rounded-lg bg-gray-900 flex items-center justify-center h-[320px] w-full max-w-md mx-auto relative overflow-hidden">
                             <p id="image-placeholder-text" class="text-gray-400">Your generated image will appear here.</p>
-                            <img id="generated-image" class="hidden max-w-full h-auto rounded-lg shadow-lg" alt="Generated Image">
-                            <div id="image-loading-indicator" class="hidden absolute inset-0 bg-gray-900 bg-opacity-80 flex items-center justify-center text-purple-400 text-lg font-medium">
+                            <img id="generated-image" class="hidden max-w-full max-h-full object-contain rounded-lg shadow-lg" alt="Generated Image">
+                            <div id="image-loading-indicator" class="hidden absolute inset-0 bg-gray-900 bg-opacity-80 flex items-center justify-center text-purple-400 text-lg font-medium"></div>
+                        </div>
                                 Generating image...
                                 <svg class="animate-spin ml-3 h-5 w-5 text-purple-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
