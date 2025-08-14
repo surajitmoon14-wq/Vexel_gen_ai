@@ -263,7 +263,7 @@
                 <div id="input-bar" class="mt-4 flex-shrink-0">
                     <div id="file-attachment-preview" class="mb-2"></div>
                     <form id="prompt-form" class="relative">
-                        <textarea id="prompt-input" class="w-full p-4 pr-40 bg-gray-800 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 resize-none max-h-32" placeholder="Type your prompt here, or use the microphone..." rows="1"></textarea>
+                        <textarea id="prompt-input" class="w-full p-3 pr-40 bg-gray-800 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 resize-none h-12 max-h-20 overflow-y-auto" placeholder="Type your prompt here, or use the microphone..." rows="1"></textarea>
                         <div class="absolute bottom-3 right-3 flex items-center space-x-2">
                             <button type="button" id="mic-btn" class="p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white cursor-pointer transition-colors" title="Voice Input">
                                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-14 0m7 10v4m0 0a2 2 0 01-2-2v-2m2 2a2 2 0 002-2v-2M3 11a9 9 0 0118 0"></path></svg>
@@ -987,10 +987,12 @@
             setTimeout(() => { notification.classList.add('opacity-0'); notification.addEventListener('transitionend', () => notification.remove()); }, 4000);
         }
         function autoResizeTextarea() { 
-            promptInput.style.height = 'auto'; 
-            const maxHeight = 120; // Limit max height to prevent excessive growth
+            promptInput.style.height = '48px'; // Reset to fixed height (h-12)
+            const maxHeight = 80; // Reduced max height (max-h-20)
             const newHeight = Math.min(promptInput.scrollHeight, maxHeight);
-            promptInput.style.height = newHeight + 'px';
+            if (newHeight > 48) {
+                promptInput.style.height = newHeight + 'px';
+            }
             promptInput.style.overflowY = promptInput.scrollHeight > maxHeight ? 'auto' : 'hidden';
         }
 
@@ -1116,7 +1118,12 @@
             messageContent.querySelectorAll('pre code').forEach((block) => {
                 hljs.highlightElement(block);
             });
-            chatContainer.scrollTop = chatContainer.scrollHeight;
+            // Only auto-scroll if user is near bottom or if it's a new message after user interaction
+            const isNearBottom = chatContainer.scrollTop + chatContainer.clientHeight >= chatContainer.scrollHeight - 100;
+            const isUserMessage = sender === 'user';
+            if (isNearBottom || isUserMessage || (!isFirstMessageInSession && sender === 'ai')) {
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
             return bubbleWrapper;
         }
 
