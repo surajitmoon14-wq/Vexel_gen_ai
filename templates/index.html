@@ -292,8 +292,18 @@
                                <input type="text" id="display-name-input" class="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500" placeholder="Enter your name">
                             </div>
                             <div>
-                               <label for="avatar-url-input" class="block mb-2 font-medium text-sm">Avatar URL</label>
-                               <input type="url" id="avatar-url-input" class="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500" placeholder="https://example.com/avatar.png">
+                               <label class="block mb-2 font-medium text-sm">Avatar</label>
+                               <div class="space-y-2">
+                                   <input type="url" id="avatar-url-input" class="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500" placeholder="https://example.com/avatar.png">
+                                   <div class="text-center text-sm text-gray-400">or</div>
+                                   <label for="avatar-file-input" class="w-full p-2 bg-gray-600 border border-gray-500 rounded-lg cursor-pointer hover:bg-gray-500 transition-colors text-center block">
+                                       <svg class="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                       </svg>
+                                       Upload Avatar Image
+                                   </label>
+                                   <input type="file" id="avatar-file-input" class="hidden" accept="image/*">
+                               </div>
                             </div>
                         </div>
                     </div>
@@ -438,6 +448,7 @@
         const fontSizeValue = getEl('font-size-value');
         const displayNameInput = getEl('display-name-input');
         const avatarUrlInput = getEl('avatar-url-input');
+        const avatarFileInput = getEl('avatar-file-input');
         const userTextColorInput = getEl('user-text-color');
         const aiTextColorInput = getEl('ai-text-color');
         const userBubbleColorInput = getEl('user-bubble-color');
@@ -546,6 +557,9 @@
                 recognition.onresult = handleVoiceResult;
                 recognition.onend = () => micBtn.classList.remove('is-recording');
             }
+            
+            // Avatar file upload handling
+            avatarFileInput.addEventListener('change', handleAvatarFileUpload);
 
             // Event Listener for Image Generation Button
             if (generateImageButton) {
@@ -1364,6 +1378,28 @@
             } catch (error) {
                 summaryContent.innerHTML = `<p class="text-red-400">Error: ${error.message}</p>`;
             }
+        }
+
+        // Avatar file upload handler
+        function handleAvatarFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            if (!file.type.startsWith('image/')) {
+                showNotification('Please select an image file.', 'error');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                // Set the data URL as the avatar URL
+                avatarUrlInput.value = e.target.result;
+                showNotification('Avatar image uploaded successfully!', 'success');
+            };
+            reader.onerror = () => {
+                showNotification('Error reading image file.', 'error');
+            };
+            reader.readAsDataURL(file);
         }
 
         // --- Run App ---
