@@ -20,15 +20,7 @@
 
 import os
 import json
-import @app.route('/login')
-def login():
-    return redirect('/signin')  # Redirect to the Google Sign-in# Add this route for login
-@app.route('/login')
-def login():
-    return redirect('/signin')  # Redirect to the Google Sign-in@app.route('/login')
-def login():
-    # your login logic here
-    passbase64
+import base64
 import requests
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, render_template, redirect, url_for, session, send_from_directory
