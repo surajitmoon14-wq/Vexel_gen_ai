@@ -8,6 +8,7 @@ from datetime import datetime
 import uuid
 import random
 import vertexai
+# Correct import for GenerativeModel which supports imagen-3.0-generate-001
 from vertexai.generative_models import GenerativeModel
 # ----------------------------------------------------
 
@@ -48,6 +49,7 @@ else:
 if GCP_PROJECT_ID:
     try:
         vertexai.init(project=GCP_PROJECT_ID, location="us-central1")
+        # Use GenerativeModel for imagen-3.0-generate-001
         imagen_model = GenerativeModel("imagen-3.0-generate-001")
         print("Vertex AI (for Imagen) configured successfully.")
     except Exception as e:
@@ -139,16 +141,17 @@ def generate_image():
         print(f"Generating image with Imagen for prompt: '{prompt}'")
         # Generate the image using the new Imagen model
         response = imagen_model.generate_content([prompt])
-        
-        # Extract the generated image
+
+        # Extract the generated image data
+        # The structure is response.candidates[0].content.parts[0].inline_data.data for base64
         image_data = response.candidates[0].content.parts[0].inline_data.data
-        
+
         # Save the generated image to a file
         image_filename = f"{uuid.uuid4()}.png"
         image_path = os.path.join(UPLOAD_FOLDER, image_filename)
-        
+
         # Decode and save the image
-        import base64
+        import base64 # Ensure base64 is imported if not already
         with open(image_path, "wb") as f:
             f.write(base64.b64decode(image_data))
 
