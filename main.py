@@ -48,12 +48,26 @@ else:
 # --- Initialize Vertex AI for Imagen ---
 if GCP_PROJECT_ID:
     try:
-        vertexai.init(project=GCP_PROJECT_ID, location="us-central1")
+        # Check if we have a service account key
+        service_account_key = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS_JSON')
+        if service_account_key:
+            # Parse the JSON key and create credentials
+            import json
+            from google.oauth2 import service_account
+            
+            key_data = json.loads(service_account_key)
+            credentials = service_account.Credentials.from_service_account_info(key_data)
+            vertexai.init(project=GCP_PROJECT_ID, location="us-central1", credentials=credentials)
+        else:
+            # Try without explicit credentials (will fail on Replit)
+            vertexai.init(project=GCP_PROJECT_ID, location="us-central1")
+        
         # Use GenerativeModel for imagen-3.0-generate-001
         imagen_model = GenerativeModel("imagen-3.0-generate-001")
         print("Vertex AI (for Imagen) configured successfully.")
     except Exception as e:
         print(f"WARNING: Failed to initialize Vertex AI. Image generation will not work. Error: {e}")
+        print("HINT: Set GOOGLE_APPLICATION_CREDENTIALS_JSON environment variable with your service account key JSON.")
         imagen_model = None
 else:
     print("WARNING: GCP_PROJECT_ID not set. Image generation will not work.")
