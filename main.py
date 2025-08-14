@@ -20,6 +20,7 @@
 
 import os
 import json
+import base64
 import requests
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, render_template, redirect, url_for, session, send_from_directory
@@ -304,53 +305,7 @@ def summarize_conversation():
     if not text:
         return jsonify({'error': 'No text to summarize'}), 400
     try:
-        summary_prompt = f"Please provide a concfrom flask import Flask, redirect, session, url_for, request
-import google_auth_oauthlib.flow
-import json
-import os
-import requests
-import googleapiclient.errors
-from googleapiclient.discovery import build
-import google.oauth2.credentials
-
-app = Flask('app')
-app.secret_key = os.environ.get('FLASK_SECRET_KEY') or os.urandom(24)
-
-@app.route('/login')
-def login():
-    # Add your login logic here
-    return "This is the login page."
-
-@app.route('/oauth2callback')
-def oauth2callback():
-    if not session['state'] == request.args['state']:
-        return 'Invalid state parameter', 400
-    oauth_flow.fetch_token(authorization_response=request.url.replace('http:', 'https:'))
-    session['access_token'] = oauth_flow.credentials.token
-    return redirect("/")
-
-@app.route('/logout')
-def logout():
-    session.clear()
-    return redirect('/')
-
-# Define your other routes here...
-
-def get_sheets(sheets_api, spreadsheet_id) -> list[str]:
-    result = sheets_api.get(spreadsheetId=spreadsheet_id).execute()
-    return [sheet["properties"]["title"] for sheet in result["sheets"]]
-
-def get_sheet_data(sheets_api, spreadsheet_id, sheet_title) -> list[list[str]]:
-    result = (
-        sheets_api.values()
-        .get(spreadsheetId=spreadsheet_id, range=sheet_title)
-        .execute()
-    )
-    return result["values"]
-
-# Run the app on 0.0.0.0 and port 5000
-if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000, debug=True)ise summary of the following conversation:\n\n{text}"
+        summary_prompt = f"Please provide a concise summary of the following conversation:\n\n{text}"
         payload = {"contents": [{"parts": [{"text": summary_prompt}]}]}
         api_response = call_gemini_api(CHAT_MODEL, payload)
         summary = api_response.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "Could not generate summary.")
