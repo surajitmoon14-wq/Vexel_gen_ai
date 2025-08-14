@@ -21,6 +21,15 @@ import google.generativeai as genai
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 
+# Import Replit Object Storage for file persistence
+try:
+    from replit.object_storage import Client
+    object_storage_client = Client()
+    print("Object Storage client initialized successfully.")
+except ImportError:
+    print("WARNING: Replit Object Storage not available. Falling back to local storage.")
+    object_storage_client = None
+
 # --- App Initialization & Configuration ---
 app = Flask(__name__, template_folder='templates', static_folder='static')
 CORS(app)
@@ -481,6 +490,76 @@ def search_history():
                 break # Found a match in this chat, move to the next one
 
     return jsonify(search_results)
+
+# --- NEW: Avatar Upload Route ---
+@app.route('/upload_avatar', methods=['POST'])
+def upload_avatar():
+    if 'username' not in session:
+        return jsonify({'error': 'Authentication required.'}), 401
+    
+    if 'avatar' not in request.files:
+        return jsonify({'error': 'No avatar file provided.'}), 400
+    
+    file = request.files['avatar']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected.'}), 400
+    
+    # Validate file type
+    allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+    file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+    if file_ext not in allowed_extensions:
+        return jsonify({'error': 'Invalid file type. Please upload an image file.'}), 400
+    
+    try:
+        # Generate unique filename
+        unique_filename = f"avatar_{session['username']}_{uuid.uuid4().hex}.{file_ext}"
+        
+        # Read file data
+        file_data = file.read()
+        
+        # Try to save to Object Storage first, fallback to local storage
+        avatar_url = None
+        if object_storage_client:
+            try:
+                object_storage_client.upload_from_bytes(f"avatars/{unique_filename}", file_data)
+                avatar_url = f"/avatar/{unique_filename}"
+                print(f"Avatar uploaded to Object Storage: {unique_filename}")
+            except Exception as e:
+                print(f"Object Storage upload failed, falling back to local: {e}")
+                object_storage_client = None
+        
+        if not avatar_url:
+            # Fallback to local storage
+            local_path = os.path.join(UPLOAD_FOLDER, unique_filename)
+            with open(local_path, 'wb') as f:
+                f.write(file_data)
+            avatar_url = f"/static/uploads/{unique_filename}"
+            print(f"Avatar saved locally: {unique_filename}")
+        
+        return jsonify({'avatar_url': avatar_url})
+        
+    except Exception as e:
+        print(f"Error uploading avatar: {e}")
+        return jsonify({'error': 'Failed to upload avatar.'}), 500
+
+# --- Route to serve avatars from Object Storage ---
+@app.route('/avatar/<filename>')
+def serve_avatar(filename):
+    if not object_storage_client:
+        return jsonify({'error': 'Object Storage not available.'}), 404
+    
+    try:
+        # Download from Object Storage
+        temp_file = f"/tmp/{filename}"
+        object_storage_client.download_to_filename(f"avatars/{filename}", temp_file)
+        
+        # Serve the file
+        from flask import send_file
+        return send_file(temp_file, as_attachment=False)
+        
+    except Exception as e:
+        print(f"Error serving avatar from Object Storage: {e}")
+        return jsonify({'error': 'Avatar not found.'}), 404
 
 # --- NEW: User Profile Management Routes ---
 @app.route('/profile', methods=['GET'])

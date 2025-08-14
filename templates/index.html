@@ -1381,7 +1381,7 @@
         }
 
         // Avatar file upload handler
-        function handleAvatarFileUpload(event) {
+        async function handleAvatarFileUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
             
@@ -1390,16 +1390,36 @@
                 return;
             }
             
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                // Set the data URL as the avatar URL
-                avatarUrlInput.value = e.target.result;
-                showNotification('Avatar image uploaded successfully!', 'success');
-            };
-            reader.onerror = () => {
-                showNotification('Error reading image file.', 'error');
-            };
-            reader.readAsDataURL(file);
+            // Show loading notification
+            showNotification('Uploading avatar...', 'info');
+            
+            try {
+                const formData = new FormData();
+                formData.append('avatar', file);
+                
+                const response = await fetch('/upload_avatar', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    avatarUrlInput.value = data.avatar_url;
+                    showNotification('Avatar uploaded successfully!', 'success');
+                } else {
+                    throw new Error(data.error || 'Upload failed');
+                }
+            } catch (error) {
+                showNotification(`Error uploading avatar: ${error.message}`, 'error');
+                // Fallback to data URL for immediate preview
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    avatarUrlInput.value = e.target.result;
+                    showNotification('Using local preview (not saved to server)', 'info');
+                };
+                reader.readAsDataURL(file);
+            }
         }
 
         // --- Run App ---
