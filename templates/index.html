@@ -177,7 +177,7 @@
                     <div id="model-dropdown" class="absolute top-full mt-1 w-56 bg-gray-800 rounded-lg shadow-lg z-10 hidden border border-gray-700">
                         <a href="#" class="model-option block px-4 py-3 text-gray-300 hover:bg-pink-600/50 hover:text-white rounded-t-lg" data-model="image">Image Generator</a>
                         <a href="#" class="model-option block px-4 py-3 text-gray-300 hover:bg-pink-600/50 hover:text-white" data-model="chat">Chat Assistant</a>
-                        <a href="#" class="model-option block px-4 py-3 text-gray-300 hover:bg-pink-600/50 hover:text-white rounded-b-lg" data-model="emotion">Emotion AI</a>
+                        <a href="#" class="model-option block px-4 py-3 text-gray-300 hover:bg-pink-600/50 hover:text-white rounded-b-lg" data-model="emotion">Emotion Detector</a>
                     </div>
                 </div>
             </div>
@@ -263,7 +263,7 @@
                 <div id="input-bar" class="mt-4 flex-shrink-0">
                     <div id="file-attachment-preview" class="mb-2"></div>
                     <form id="prompt-form" class="relative">
-                        <textarea id="prompt-input" class="w-full p-4 pr-40 bg-gray-800 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 resize-none" placeholder="Type your prompt here, or use the microphone..." rows="1"></textarea>
+                        <textarea id="prompt-input" class="w-full p-4 pr-40 bg-gray-800 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 resize-none max-h-32" placeholder="Type your prompt here, or use the microphone..." rows="1"></textarea>
                         <div class="absolute bottom-3 right-3 flex items-center space-x-2">
                             <button type="button" id="mic-btn" class="p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white cursor-pointer transition-colors" title="Voice Input">
                                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-14 0m7 10v4m0 0a2 2 0 01-2-2v-2m2 2a2 2 0 002-2v-2M3 11a9 9 0 0118 0"></path></svg>
@@ -986,7 +986,13 @@
             setTimeout(() => { notification.classList.remove('translate-x-full', 'opacity-0'); }, 10);
             setTimeout(() => { notification.classList.add('opacity-0'); notification.addEventListener('transitionend', () => notification.remove()); }, 4000);
         }
-        function autoResizeTextarea() { promptInput.style.height = 'auto'; promptInput.style.height = (promptInput.scrollHeight) + 'px'; }
+        function autoResizeTextarea() { 
+            promptInput.style.height = 'auto'; 
+            const maxHeight = 120; // Limit max height to prevent excessive growth
+            const newHeight = Math.min(promptInput.scrollHeight, maxHeight);
+            promptInput.style.height = newHeight + 'px';
+            promptInput.style.overflowY = promptInput.scrollHeight > maxHeight ? 'auto' : 'hidden';
+        }
 
         // --- App Logic ---
         function handleModelSwitch(e) {
@@ -1046,7 +1052,7 @@
             if (currentModel === 'chat') {
                 addMessageToChat({ content: "Hello! I'm Vexel AI. How can I help you today?", sender: 'ai', type: 'text' });
             } else if (currentModel === 'emotion') {
-                addMessageToChat({ content: "Emotion AI activated. Start your camera to begin. The AI will comment on detected emotions.", sender: 'system' });
+                addMessageToChat({ content: "Emotion Detector activated. Start your camera to begin. The AI will comment on detected emotions.", sender: 'system' });
             } else if (currentModel === 'image') {
                 // Clear any previous image and reset placeholder
                 generatedImage.src = '';
