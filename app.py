@@ -553,11 +553,26 @@ def signup():
         }
         
         # Store user data and email mapping
-        db[user_key] = json.dumps(user_data)
-        db[email_key] = username  # Map email to username for login lookup
-        
-        print(f"Created user: {username} with email: {email}")
-        print(f"User key: {user_key}, Email key: {email_key}")
+        try:
+            db[user_key] = json.dumps(user_data)
+            db[email_key] = username  # Map email to username for login lookup
+            
+            # Verify the data was stored
+            stored_user_data = db.get(user_key)
+            stored_email_mapping = db.get(email_key)
+            
+            print(f"Created user: {username} with email: {email}")
+            print(f"User key: {user_key}, Email key: {email_key}")
+            print(f"Stored user data: {stored_user_data is not None}")
+            print(f"Stored email mapping: {stored_email_mapping}")
+            
+            if not stored_user_data or not stored_email_mapping:
+                flash("Failed to create account. Please try again.", "danger")
+                return redirect(url_for('signup'))
+        except Exception as e:
+            print(f"Error storing user data: {e}")
+            flash("Failed to create account. Please try again.", "danger")
+            return redirect(url_for('signup'))
         
         # Create a default profile for the new user
         profile_key = get_profile_key(username)
@@ -621,6 +636,15 @@ def login():
 def logout():
     session.pop('username', None)
     return redirect(url_for('login'))
+
+# --- Debug Route (Remove in production) ---
+@app.route('/debug/db/<key>')
+def debug_db(key):
+    if 'username' not in session:
+        return jsonify({'error': 'Authentication required.'}), 401
+    
+    value = db.get(key)
+    return jsonify({'key': key, 'value': value, 'exists': value is not None})
 
 # --- Main Execution ---
 if __name__ == '__main__':
