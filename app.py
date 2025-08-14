@@ -657,3 +657,26 @@ def login():
             # Input is likely a username
             username = login_input
             print(f"Login attempt with username: {username}")
+        
+        # Retrieve user data using the found or provided username
+        user_key = get_user_key(username)
+        user_data = db.get(user_key)
+
+        if not user_data:
+            flash("Invalid username or email.", "danger")
+            return redirect(url_for('login'))
+
+        user_info = json.loads(user_data)
+        if bcrypt.check_password_hash(user_info['password'], password):
+            session['username'] = username
+            return redirect(url_for('index'))
+        else:
+            flash("Invalid password.", "danger")
+            return redirect(url_for('login'))
+
+    return render_template('login.html')
+
+if __name__ == '__main__':
+    # It's generally recommended to run Flask apps with a production-ready WSGI server
+    # like Gunicorn in production. For local development, debug=True is fine.
+    app.run(host='0.0.0.0', port=8080, debug=True)
