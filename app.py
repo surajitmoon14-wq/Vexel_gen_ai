@@ -669,19 +669,26 @@ def signup():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        email = request.form['email']
+        login_input = request.form['email']  # This field now accepts both email and username
         password = request.form['password']
         
-        # Look up username by email
-        email_key = get_email_key(email)
-        username = db.get(email_key)
+        username = None
         
-        print(f"Login attempt for email: {email}")
-        print(f"Email key: {email_key}")
-        print(f"Found username: {username}")
+        # Check if input contains @ symbol (likely email)
+        if '@' in login_input:
+            # Try to find username by email
+            email_key = get_email_key(login_input)
+            username = db.get(email_key)
+            print(f"Login attempt with email: {login_input}")
+            print(f"Email key: {email_key}")
+            print(f"Found username: {username}")
+        else:
+            # Input is likely a username
+            username = login_input
+            print(f"Login attempt with username: {login_input}")
         
         if not username:
-            flash("Email not found. Please check your email or sign up.", "danger")
+            flash("Email or username not found. Please check your credentials or sign up.", "danger")
             return redirect(url_for('login'))
             
         user_key = get_user_key(username)
@@ -707,7 +714,7 @@ def login():
                 session['username'] = username
                 return redirect(url_for('index'))
         
-        flash("Invalid email or password.", "danger")
+        flash("Invalid email/username or password.", "danger")
         return redirect(url_for('login'))
     return render_template('login.html')
 
