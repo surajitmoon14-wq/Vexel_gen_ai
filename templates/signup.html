@@ -22,6 +22,7 @@
         {% endwith %}
 
         <form method="POST" action="/signup">
+            <input type="email" name="email" placeholder="Email Address" required>
             <input type="text" name="username" placeholder="Choose a Username" required>
             <input type="password" name="password" placeholder="Choose a Password" required>
             <button type="submit">Sign Up</button>

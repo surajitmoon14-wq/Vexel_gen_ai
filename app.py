@@ -100,6 +100,9 @@ EMOTION_QUOTES = {
 def get_user_key(username):
     return f"user_{username}"
 
+def get_email_key(email):
+    return f"email_{email}"
+
 def get_history_key(username):
     return f"history_{username}"
 
@@ -525,14 +528,33 @@ def update_profile():
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == 'POST':
+        email = request.form['email']
         username = request.form['username']
         password = request.form['password']
+        
         user_key = get_user_key(username)
+        email_key = get_email_key(email)
+        
+        # Check if username or email already exists
         if db.get(user_key):
             flash("Username already exists! Please choose another.", "danger")
             return redirect(url_for('signup'))
+        if db.get(email_key):
+            flash("Email already registered! Please use a different email.", "danger")
+            return redirect(url_for('signup'))
+            
         hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
-        db[user_key] = hashed_password
+        
+        # Store user data with both username and email mapping
+        user_data = {
+            'password': hashed_password,
+            'email': email,
+            'username': username
+        }
+        
+        db[user_key] = json.dumps(user_data)
+        db[email_key] = username  # Map email to username for login lookup
+        
         # Create a default profile for the new user
         profile_key = get_profile_key(username)
         default_profile = {
@@ -549,16 +571,34 @@ def signup():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username']
+        email = request.form['email']
         password = request.form['password']
-        user_key = get_user_key(username)
-        hashed_password = db.get(user_key)
-        if hashed_password and bcrypt.check_password_hash(hashed_password, password):
-            session['username'] = username
-            return redirect(url_for('index'))
-        else:
-            flash("Invalid username or password.", "danger")
+        
+        # Look up username by email
+        email_key = get_email_key(email)
+        username = db.get(email_key)
+        
+        if not username:
+            flash("Email not found. Please check your email or sign up.", "danger")
             return redirect(url_for('login'))
+            
+        user_key = get_user_key(username)
+        user_data_str = db.get(user_key)
+        
+        if user_data_str:
+            try:
+                user_data = json.loads(user_data_str)
+                stored_password = user_data.get('password')
+            except (json.JSONDecodeError, TypeError):
+                # Handle legacy format (just password string)
+                stored_password = user_data_str
+                
+            if stored_password and bcrypt.check_password_hash(stored_password, password):
+                session['username'] = username
+                return redirect(url_for('index'))
+                
+        flash("Invalid email or password.", "danger")
+        return redirect(url_for('login'))
     return render_template('login.html')
 
 @app.route('/logout')
